@@ -23,6 +23,19 @@ Read `docs/IMPLEMENTATION_STATUS.md` first when resuming development work.
 Images are described and checked by local vision models (OmniVision → SmolVLM → Google Vision → CLIP+YOLOv8);
 Claude reads only the compact JSON summary (`kw`, `flags`, `rel`), never the image or the full description.
 
+## Usage-limit safety net (dynamic resume)
+Claude subscription usage resets about 5 hours after usage starts, so resumes follow the reset,
+not a fixed clock:
+- As soon as `discover` returns work (`resume` or a new item), call the `send_later` tool with
+  `delay_minutes: 310` and the message "Usage window has reset: continue the YouTube Short run —
+  run `python -m ytauto discover` and continue (resume) per CLAUDE.md". Keep the returned trigger id.
+- If you are woken by that message, first arm a new 310-minute reminder the same way, then continue.
+- When the run ends normally (video submitted, or nothing to do), delete your reminder with
+  `delete_trigger`. Never leave more than one reminder armed.
+- If `send_later` is not available, skip this; the next daily run resumes from the checkpoint.
+- `submit` automatically picks the next free 19:30 IST slot, so a late video never collides with
+  the next day's video.
+
 ## Daily workflow (scheduled task)
 Run from the repo root with `PYTHONPATH=src`. Work files go in `runtime/work/<VIDEO_ID>/`.
 

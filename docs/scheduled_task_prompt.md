@@ -1,4 +1,4 @@
-Daily YouTube Shorts production run (fresh cloud session). Also used by the 13:37 IST catch-up run.
+Daily YouTube Shorts production run (fresh cloud session).
 
 1. Get the code: if a `youtube-shorts-automation` checkout exists, `cd` into it and `git pull --ff-only`;
    otherwise `git clone --depth 1 https://github.com/delitecoder/youtube-shorts-automation.git` and `cd` into it.
@@ -12,6 +12,9 @@ Daily YouTube Shorts production run (fresh cloud session). Also used by the 13:3
    Opus orchestrates; researcher + quality-reviewer = Haiku, storywriter = Sonnet, advisor = Fable
    (only for a genuinely hard decision). Each video: 1–2 licensed internet images, HyperFrames
    animation, SEO metadata (title ≤ 60 chars, 3–5 hashtags incl. #Shorts, 8–15 tags, category).
-5. Never change flags, never upload or publish (the Apps Script uploads only after the approver's
+5. Usage-limit safety net: as soon as `discover` returns work, arm a `send_later` reminder
+   (delay_minutes 310) back into this session, as described in CLAUDE.md, and delete it when the
+   run ends normally. If tokens run out, that reminder continues this run after the usage reset.
+6. Never change flags, never upload or publish (the Apps Script uploads only after the approver's
    APPROVED reply), never print key values, never edit code or push during the run.
-6. End with a five-line summary: video ID, state, title, warnings, next step for the owner.
+7. End with a five-line summary: video ID, state, title, warnings, next step for the owner.

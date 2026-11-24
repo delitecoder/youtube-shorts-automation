@@ -20,7 +20,7 @@ from ..integrations.drive import sha256_file
 from ..integrations.google_auth import MissingCredentials
 from ..production import storyboard as sbmod
 from ..production.source_video import assess
-from ..publishing.schedule import next_slot, rfc3339
+from ..publishing.schedule import free_slot, next_slot, rfc3339
 from ..research.validate import validate_research
 from ..state import ACTIVE_STATES, State, VideoRecord, iso, parse_iso, utcnow
 from ..store import log_error, next_video_id
@@ -391,8 +391,10 @@ def cmd_submit(ctx: Ctx, a) -> int:
         out({"ok": False, "errors": errs})
         return 2
     now = utcnow()
-    slot = rfc3339(next_slot(now + timedelta(hours=1), ctx.s.publish_time, ctx.s.timezone,
-                             ctx.s.min_lead_minutes))
+    taken = {r.proposed_publish_at for r in ctx.store.all()
+             if r.video_id != rec.video_id and r.proposed_publish_at and r.state in
+             (State.AWAITING_APPROVAL, State.APPROVED, State.UPLOADING, State.SCHEDULED)}
+    slot = rfc3339(free_slot(now, taken, ctx.s.publish_time, ctx.s.timezone, ctx.s.min_lead_minutes))
     qr = json.loads(rec.quality_report or "{}") | {"review": review}
     qr["youtube"] = {"category_id": str(meta.get("category_id", "28")), "made_for_kids": False,
                      "language": "en", "embeddable": True, "public_stats": True}

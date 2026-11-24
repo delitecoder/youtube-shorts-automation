@@ -147,3 +147,12 @@ def test_hyperframes_composition_is_complete_and_captions_do_not_overlap(tmp_pat
     spans = [(float(a), float(b)) for a, b in _re.findall(r'class="cap clip" data-start="([\d.]+)" data-duration="([\d.]+)"', doc)]
     for (s1, d1), (s2, _) in zip(spans, spans[1:]):
         assert s1 + d1 <= s2 + 1e-6
+
+
+def test_free_slot_skips_taken_evenings():
+    from ytauto.publishing.schedule import free_slot
+    now = datetime(2026, 11, 24, 4, 30, tzinfo=timezone.utc)           # 10:00 IST
+    assert rfc3339(free_slot(now, set())) == "2026-11-24T14:00:00Z"
+    assert rfc3339(free_slot(now, {"2026-11-24T14:00:00Z"})) == "2026-11-25T14:00:00Z"
+    late = datetime(2026, 11, 24, 13, 0, tzinfo=timezone.utc)          # 18:30 IST: too late for today
+    assert rfc3339(free_slot(late, {"2026-11-25T14:00:00Z"})) == "2026-11-26T14:00:00Z"

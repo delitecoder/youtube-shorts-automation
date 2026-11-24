@@ -17,5 +17,15 @@ def next_slot(now: datetime, publish_time: str = "19:30", tz: str = "Asia/Kolkat
     return cand.astimezone(timezone.utc)
 
 
+def free_slot(now: datetime, taken: set[str], publish_time: str = "19:30", tz: str = "Asia/Kolkata",
+              min_lead_minutes: int = 120, approval_window_hours: int = 1) -> datetime:
+    """Next evening slot that leaves time to approve and is not already used by another video
+    (a video finished late after a usage-limit pause must not collide with tomorrow's video)."""
+    slot = next_slot(now + timedelta(hours=approval_window_hours), publish_time, tz, min_lead_minutes)
+    while rfc3339(slot) in taken:
+        slot += timedelta(days=1)
+    return slot
+
+
 def rfc3339(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
