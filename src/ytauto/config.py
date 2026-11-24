@@ -1,0 +1,148 @@
+"""Runtime settings. Everything comes from environment variables; secrets never live in the repo.
+
+Safety defaults: DRY_RUN=true and every *_ENABLED flag false. A flag is only "on" when its
+value is exactly "true" (case-insensitive); anything else, including typos, means off.
+DRY_RUN is the reverse: it is only off when its value is exactly "false".
+"""
+from __future__ import annotations
+
+import json
+import os
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Mapping
+
+ROOT = Path(__file__).resolve().parents[2]
+RUNTIME_DIR = Path(os.environ.get("YTA_RUNTIME_DIR") or ROOT / "runtime")
+
+ALLOWED_CATEGORIES = (
+    "educational technology",
+    "artificial intelligence",
+    "emerging technology",
+    "programming",
+    "software engineering",
+    "technology news",
+    "general education",
+)
+
+FOLDER_KEYS = (
+    "root", "inbox", "inbox_videos", "inbox_documents", "inbox_references",
+    "references_images", "references_sfx", "references_music",
+    "generated", "awaiting_approval", "published", "rejected", "archive",
+)
+FOLDER_NAMES = {
+    "root": "YouTubeAutomation",
+    "inbox": "01_Inbox",
+    "inbox_videos": "Videos",
+    "inbox_documents": "Documents",
+    "inbox_references": "References",
+    "references_images": "Images",   # your own / licensed images (RIGHTS: … in description)
+    "references_sfx": "SFX",         # e.g. selected Earshot SFX + manifest.json
+    "references_music": "Music",     # e.g. ACE-Step beds you generated + manifest.json
+    "generated": "02_Generated",
+    "awaiting_approval": "03_Awaiting_Approval",
+    "published": "04_Published",
+    "rejected": "05_Rejected",
+    "archive": "Archive",            # uploaded videos are moved here after a successful upload
+}
+
+
+def _on(v: str | None) -> bool:
+    return (v or "").strip().lower() == "true"
+
+
+def _dry(v: str | None) -> bool:
+    return (v or "").strip().lower() != "false"
+
+
+@dataclass(frozen=True)
+class Settings:
+    dry_run: bool = True
+    upload_enabled: bool = False
+    publication_enabled: bool = False
+    promotion_enabled: bool = False
+    approver_email: str = ""
+    approver_is_owner: bool = True          # approver mailbox == mailbox running Apps Script
+    timezone: str = "Asia/Kolkata"
+    publish_time: str = "19:30"
+    min_lead_minutes: int = 120              # publishAt must be at least this far in the future
+    approval_ttl_hours: int = 24
+    publish_window_hours: int = 24           # approved item must be uploaded within this window
+    tts_monthly_char_budget: int = 100_000
+    tts_voice: str = "en-US-Chirp3-HD-Charon"
+    tts_language: str = "en-US"
+    tts_provider: str = "google"             # google | kokoro | edge | piper | tone (tests only)
+    tts_fallbacks: tuple = ("kokoro", "piper")  # tried in order if the primary fails
+    allow_edge_tts: bool = False             # Edge TTS is an unofficial service: opt-in only
+    kokoro_voice: str = "am_michael"
+    edge_voice: str = "en-US-AndrewNeural"
+    music_enabled: bool = True
+    sfx_enabled: bool = True
+    outro_enabled: bool = True
+    outro_text: str = "If you learned something, subscribe for a new tech story every day."
+    max_source_video_seconds: float = 180.0
+    max_source_video_bytes: int = 2 * 1024**3
+    spreadsheet_id: str = ""
+    folders: Mapping[str, str] = field(default_factory=dict)
+    publisher_verify_gmail: bool = True
+    youtube_category_id: str = "27"          # Education
+    channel_language: str = "en"
+    bluesky_handle: str = ""
+
+    @classmethod
+    def from_env(cls, env: Mapping[str, str] | None = None) -> "Settings":
+        e = os.environ if env is None else env
+        folders = {}
+        if e.get("DRIVE_FOLDER_IDS"):
+            folders = json.loads(e["DRIVE_FOLDER_IDS"])
+            unknown = set(folders) - set(FOLDER_KEYS)
+            if unknown:
+                raise ValueError(f"Unknown DRIVE_FOLDER_IDS keys: {sorted(unknown)}")
+        return cls(
+            dry_run=_dry(e.get("DRY_RUN")),
+            upload_enabled=_on(e.get("UPLOAD_ENABLED")),
+            publication_enabled=_on(e.get("PUBLICATION_ENABLED")),
+            promotion_enabled=_on(e.get("PROMOTION_ENABLED")),
+            approver_email=e.get("APPROVER_EMAIL", "").strip().lower(),
+            approver_is_owner=e.get("APPROVER_IS_OWNER", "true").strip().lower() != "false",
+            timezone=e.get("PUBLISH_TIMEZONE", "Asia/Kolkata"),
+            publish_time=e.get("PUBLISH_TIME", "19:30"),
+            approval_ttl_hours=int(e.get("APPROVAL_TTL_HOURS", "24")),
+            tts_monthly_char_budget=int(e.get("TTS_MONTHLY_CHAR_BUDGET", "100000")),
+            tts_voice=e.get("TTS_VOICE", "en-US-Chirp3-HD-Charon"),
+            tts_language=e.get("TTS_LANGUAGE", "en-US"),
+            tts_provider=e.get("TTS_PROVIDER", "google"),
+            tts_fallbacks=tuple(x.strip() for x in e.get("TTS_FALLBACKS", "kokoro,piper").split(",") if x.strip()),
+            allow_edge_tts=_on(e.get("ALLOW_EDGE_TTS")),
+            kokoro_voice=e.get("KOKORO_VOICE", "am_michael"),
+            edge_voice=e.get("EDGE_VOICE", "en-US-AndrewNeural"),
+            music_enabled=e.get("MUSIC_ENABLED", "true").lower() != "false",
+            sfx_enabled=e.get("SFX_ENABLED", "true").lower() != "false",
+            outro_enabled=e.get("OUTRO_ENABLED", "true").lower() != "false",
+            outro_text=e.get("OUTRO_TEXT", cls.outro_text),
+            spreadsheet_id=e.get("SPREADSHEET_ID", ""),
+            folders=folders,
+            publisher_verify_gmail=e.get("PUBLISHER_VERIFY_GMAIL", "true").lower() != "false",
+            youtube_category_id=e.get("YOUTUBE_CATEGORY_ID", "27"),
+            bluesky_handle=e.get("BLUESKY_HANDLE", ""),
+        )
+
+    @property
+    def external_writes_allowed(self) -> bool:
+        return not self.dry_run
+
+    def folder(self, key: str) -> str:
+        if key not in FOLDER_KEYS:
+            raise KeyError(key)
+        fid = self.folders.get(key, "")
+        if not fid:
+            raise RuntimeError(f"Drive folder '{key}' not configured (DRIVE_FOLDER_IDS)")
+        return fid
+
+    def describe_flags(self) -> dict:
+        return {
+            "DRY_RUN": self.dry_run,
+            "UPLOAD_ENABLED": self.upload_enabled,
+            "PUBLICATION_ENABLED": self.publication_enabled,
+            "PROMOTION_ENABLED": self.promotion_enabled,
+        }

@@ -1,0 +1,31 @@
+{
+  "video_id": "VIDEO-20261124-001",
+  "topic": "How a hash table finds your data in one step",
+  "category": "programming",
+  "hooks": ["Your computer finds one name among a billion in a single step.",
+            "Why doesn't a search through a billion names take forever?",
+            "One line of maths makes lookups instant."],
+  "chosen_hook": 0,
+  "titles": ["How Hash Tables Find Data in One Step", "The Trick Behind Instant Lookups", "Hash Tables in 60 Seconds"],
+  "chosen_title": 0,
+  "scenes": [
+    {"narration": "Your computer finds one name among a billion in a single step. How?", "on_screen_text": "1 in a billion. 1 step.", "transition": "cut",
+     "visual": {"type": "title", "headline": "Find 1 in 1,000,000,000", "kicker": "in one step"}},
+    {"narration": "Checking every name one by one would take ages, even for a fast machine.", "on_screen_text": "The slow way", "transition": "fade",
+     "visual": {"type": "stat", "value": "1000000000", "label": "comparisons in the worst case"}},
+    {"narration": "A hash function turns each name into a number, and that number is the address of a bucket.", "on_screen_text": "Name to address", "transition": "slide",
+     "visual": {"type": "diagram", "nodes": ["\"Ada\"", "hash()", "bucket 42", "value"]}},
+    {"narration": "In Python, a dictionary does this for you every time you look up a key.", "on_screen_text": "You already use it", "transition": "fade",
+     "visual": {"type": "code", "code": "ages = {\"Ada\": 36}\nprint(ages[\"Ada\"])  # 36"}},
+    {"narration": "The surprise is that collisions are expected, so good tables keep buckets short and grow before they fill up.", "on_screen_text": "Collisions are normal", "transition": "fade",
+     "visual": {"type": "bullets", "items": ["Two keys, same bucket", "Keep buckets short", "Resize before full"]}},
+    {"narration": "Where else could turning data into an address save time?", "on_screen_text": "Your turn", "transition": "fade",
+     "visual": {"type": "question", "question": "Where else would hashing help?"}}
+  ],
+  "closing_question": "Where else could turning data into an address save time?",
+  "references": [
+    {"title": "Dictionaries", "url": "https://docs.python.org/3/tutorial/datastructures.html#dictionaries", "publisher": "Python Software Foundation", "published": "2026-01-01"},
+    {"title": "Hash table", "url": "https://en.wikipedia.org/wiki/Hash_table", "publisher": "Wikipedia", "published": "2026-01-01"},
+    {"title": "Introduction to Algorithms, ch. 11", "url": "https://mitpress.mit.edu/9780262046305/introduction-to-algorithms/", "publisher": "MIT Press", "published": "2022-04-05"}
+  ]
+}

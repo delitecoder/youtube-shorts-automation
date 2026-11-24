@@ -1,0 +1,5 @@
+# gcloud builds submit --config cloudrun/cloudbuild.yaml --substitutions _IMAGE=us-central1-docker.pkg.dev/PROJECT/ytauto/publisher:v1 .
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-f", "cloudrun/Dockerfile", "-t", "${_IMAGE}", "."]
+images: ["${_IMAGE}"]

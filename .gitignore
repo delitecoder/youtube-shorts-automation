@@ -1,0 +1,23 @@
+# secrets — never commit
+.env
+.env.*
+!.env.example
+client_secret*.json
+*token*.json
+*credentials*.json
+service-account*.json
+*.pem
+*.key
+# runtime data
+runtime/
+*.mp4
+*.wav
+__pycache__/
+.pytest_cache/
+*.pyc
+publisher-env.yaml
+*.zip
+*.pt
+*.onnx
+*.bin
+yolov8*.pt
