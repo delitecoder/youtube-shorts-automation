@@ -11,7 +11,7 @@ import json
 import shutil
 import subprocess
 import sys
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -520,6 +520,35 @@ def cmd_restore(ctx: Ctx, a) -> int:
     return 0
 
 
+def cmd_budget(ctx: Ctx, a) -> int:
+    """Decide whether/how to make today's video from the session's real usage numbers.
+    --record start|end stores utilization so the per-video cost is learned over time."""
+    from . import budget as b
+    samples = b.loads(ctx.store.get_config("claude_usage_samples", "[]"))
+    now_util = {"five_hour": a.five_hour, "seven_day": a.seven_day}
+    if a.record == "start":
+        ctx.store.set_config("claude_usage_run_start", json.dumps(now_util))
+    elif a.record == "end":
+        start = json.loads(ctx.store.get_config("claude_usage_run_start", "{}") or "{}")
+        if start:
+            ctx.store.set_config("claude_usage_samples", json.dumps(b.record_sample(samples, start, now_util)))
+            samples = b.loads(ctx.store.get_config("claude_usage_samples", "[]"))
+    p = b.plan(a.five_hour, a.five_reset, a.seven_day, a.seven_reset, samples=samples,
+               five_status=a.five_status, seven_status=a.seven_status)
+    ctx.store.set_config("claude_weekly_resets_at", p["weekly_resets_at"])
+    if p["decision"] == "weekly_stop" and a.record != "end":
+        today = _today_local(ctx).isoformat()
+        if ctx.store.get_config("weekly_alert_sent", "") != today:
+            reset_ist = datetime.fromisoformat(p["weekly_resets_at"]).astimezone(ZoneInfo(ctx.s.timezone))
+            log_error(ctx.store, "claude_budget",
+                      "Weekly Claude usage limit is (almost) used up, so no new videos can be made or "
+                      f"uploaded until it resets on {reset_ist:%a %d %b %H:%M} IST. Nothing is needed from you; "
+                      "the daily run resumes automatically after the reset.", "", "ALERT")
+            ctx.store.set_config("weekly_alert_sent", today)
+    out(p)
+    return 0
+
+
 def cmd_reconcile(ctx: Ctx, a) -> int:
     """Uploaded videos -> Drive Archive; SCHEDULED -> PUBLISHED once public; optional promotion."""
     done = []
@@ -608,6 +637,13 @@ def main(argv=None) -> int:
     p = sub.add_parser("fetch-asset"); p.add_argument("--video-id", required=True); p.add_argument("--file-id", required=True)
     p.add_argument("--name", required=True)
     sub.add_parser("sync-library")
+    p = sub.add_parser("budget")
+    p.add_argument("--five-hour", type=float, required=True, help="five_hour utilization 0-1")
+    p.add_argument("--five-reset", type=int, required=True, help="five_hour resetsAt (epoch s)")
+    p.add_argument("--seven-day", type=float, required=True, help="seven_day utilization 0-1")
+    p.add_argument("--seven-reset", type=int, required=True, help="seven_day resetsAt (epoch s)")
+    p.add_argument("--five-status", default="allowed"); p.add_argument("--seven-status", default="allowed")
+    p.add_argument("--record", choices=["start", "end"])
     p = sub.add_parser("checkpoint"); p.add_argument("--video-id", required=True)
     p = sub.add_parser("restore"); p.add_argument("--video-id", required=True)
     sub.add_parser("reconcile")

@@ -146,3 +146,19 @@ def test_resume_after_interrupted_run(tmp_path):
     r = run(rt, "restore", "--video-id", vid)
     assert r["restored"] == ["research.json"] and (wd / "research.json").exists()
     assert r["next_step"] == "research"
+
+
+def test_budget_weekly_stop_alerts_once_per_day(tmp_path):
+    import time as _t
+    rt = tmp_path / "rt"
+    now = int(_t.time())
+    args = ["budget", "--five-hour", "0.1", "--five-reset", str(now + 3600),
+            "--seven-day", "0.97", "--seven-reset", str(now + 86400)]
+    assert run(rt, *args)["decision"] == "weekly_stop"
+    run(rt, *args)
+    state = json.loads((rt / "dry_run_state.json").read_text())
+    alerts = [e for e in state["ErrorLog"] if e["severity"] == "ALERT"]
+    assert len(alerts) == 1 and "Weekly Claude usage limit" in alerts[0]["message"]
+    ok = run(rt, "budget", "--five-hour", "0.1", "--five-reset", str(now + 3600),
+             "--seven-day", "0.2", "--seven-reset", str(now + 4 * 86400), "--record", "start")
+    assert ok["decision"] == "go_full"

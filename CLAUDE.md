@@ -23,6 +23,28 @@ Read `docs/IMPLEMENTATION_STATUS.md` first when resuming development work.
 Images are described and checked by local vision models (OmniVision → SmolVLM → Google Vision → CLIP+YOLOv8);
 Claude reads only the compact JSON summary (`kw`, `flags`, `rel`), never the image or the full description.
 
+## Usage budget (check before working — finish inside the current window when possible)
+How to read the real numbers (costs almost nothing):
+1. `get_session` (no id) → `session_context`/`external_metadata.rate_limit_info` (status, resetsAt).
+2. `list_events` for your own session id with `kinds: ["rate_limit_event"]`, `limit: 20` → take the
+   newest event's `rate_limit_info.unifiedWindows`: `five_hour.utilization/resetsAt/status` and
+   `seven_day.utilization/resetsAt/status`.
+3. `python -m ytauto budget --five-hour U5 --five-reset R5 --seven-day U7 --seven-reset R7
+   [--five-status S5 --seven-status S7] --record start` and follow `decision`:
+   - `go_full`: normal workflow.
+   - `go_lean`: lean plan — one research pass, no storywriter revision loop (one review only;
+     if it fails, stop and checkpoint), `VISION_PROVIDERS=clip,metadata` (or metadata only),
+     skip analytics snapshot and Reddit drafts, keep subagent prompts short.
+   - `wait`: arm `send_later` for `resume_after_minutes`, checkpoint, stop (start after the reset).
+   - `weekly_stop`: stop now. The command already queued an alert email ("weekly Claude limit
+     reached, no videos until <reset>"). One video per day is never exceeded.
+4. Re-check (steps 2–3 without `--record`) before research, before render, and before submit; if the
+   decision got worse, switch to lean or wait at that point instead of running out mid-step.
+5. After `submit` (or when stopping), run the same command with `--record end` so the per-video cost
+   is learned (Configuration tab).
+An Apps Script watchdog independently emails the owner if no video exists by 12:30 IST (covers the
+case where Claude is fully blocked and cannot even start).
+
 ## Usage-limit safety net (dynamic resume)
 Claude subscription usage resets about 5 hours after usage starts, so resumes follow the reset,
 not a fixed clock:

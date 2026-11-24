@@ -96,6 +96,7 @@ function run() {
     checkReplies_(ss);
     expire_(ss);
     if (props_().getProperty('UPLOADER') === 'cloud_run') callPublisher_(ss); else uploadApproved_(ss);
+    noVideoCheck_(ss);
     sendNotifications_(ss);
   } catch (e) {
     try { logError_(SpreadsheetApp.openById(prop_('SPREADSHEET_ID')), '', 'apps_script', String(e)); } catch (ignored) {}
@@ -473,6 +474,25 @@ function archiveVideo_(ss, r) {
   }
 }
 
+/* ------------------------------------------------------------------ 4c. "no video today" watchdog */
+/** Independent of Claude: if by 12:30 IST no video was started today, tell the owner once. The
+ *  usual cause is an exhausted Claude usage limit (a blocked session cannot send this itself). */
+function noVideoCheck_(ss) {
+  var now = new Date();
+  var hm = Number(Utilities.formatDate(now, 'Asia/Kolkata', 'HHmm'));
+  if (hm < 1230) return;
+  var day = Utilities.formatDate(now, 'Asia/Kolkata', 'yyyyMMdd');
+  if (props_().getProperty('novideo:' + day)) return;
+  var made = table_(ss, 'VideoQueue').rows.some(function (r) { return r.video_id.indexOf('VIDEO-' + day + '-') === 0; });
+  props_().setProperty('novideo:' + day, made ? 'ok' : 'alerted');
+  if (made) return;
+  var weekly = '';
+  table_(ss, 'Configuration').rows.forEach(function (c) { if (c.key === 'claude_weekly_resets_at') weekly = c.value; });
+  logError_(ss, '', 'watchdog', 'No video was created today. Most likely the Claude usage limit is used up' +
+    (weekly ? ' (weekly limit resets ' + ist_(weekly) + ')' : '') + ', so no video can be made or uploaded until it resets. ' +
+    'Nothing is needed from you unless this repeats after the reset.', 'ALERT');
+}
+
 /* ------------------------------------------------------------------ 5. notifications */
 function sendNotifications_(ss) {
   var approver = prop_('APPROVER_EMAIL');
@@ -484,6 +504,9 @@ function sendNotifications_(ss) {
     return '[' + r.severity + '] ' + (r.video_id || '-') + ' ' + r.component + ': ' + r.message; }).join('\n\n');
   // Separate thread on purpose: notifications are never posted into an approval thread.
   var uploaded = pending.filter(function (r) { return String(r.message).indexOf('Uploaded ✓') === 0; }).length;
-  GmailApp.sendEmail(approver, (uploaded ? '✅ Short uploaded' : '[YouTube automation] ' + pending.length + ' update(s)'), body);
+  var alerts = pending.filter(function (r) { return r.severity === 'ALERT'; });
+  var subject = alerts.length ? '⚠️ Claude usage limit reached — no new videos until it resets'
+    : uploaded ? '✅ Short uploaded' : '[YouTube automation] ' + pending.length + ' update(s)';
+  GmailApp.sendEmail(approver, subject, body);
   pending.forEach(function (r) { t.sheet.getRange(r._row, col).setValue(nowIso_()); });
 }
