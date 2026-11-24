@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Push apps_script/approval_watcher.gs + appsscript.json to the owner's Apps Script project.
 
+OWNER TOOL: run it yourself. Claude sessions are blocked from running it (changing the code that
+enforces the approval gate is treated as undermining oversight), which is intended.
+
     python scripts/push_apps_script.py --if-changed      # used by the daily cloud run
 
 Needs YTA_SCRIPT_OAUTH (script_admin profile, granted once by the owner with
