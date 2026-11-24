@@ -176,8 +176,19 @@ def validate_metadata(m: dict) -> list[str]:
     tag_chars = sum(len(x) + (2 if " " in x else 0) for x in tags) + max(len(tags) - 1, 0)
     if tag_chars > 500:
         e.append(f"tags use {tag_chars} of 500 characters")
-    if len(HASHTAG_RE.findall(d)) > 15:
+    tags_in_desc = HASHTAG_RE.findall(d)
+    if len(tags_in_desc) > 15:
         e.append("more than 15 hashtags (YouTube ignores all of them)")
+    if not 3 <= len(tags_in_desc) <= 6:
+        e.append(f"{len(tags_in_desc)} hashtags in the description; use 3–5 (the first 3 show above the title)")
+    if "#shorts" not in d.lower():
+        e.append("description must include #Shorts")
+    if not 8 <= len(tags) <= 15:
+        e.append(f"{len(tags)} tags; use 8–15 (broad + specific)")
+    if str(m.get("category_id", "28")) not in ("27", "28"):
+        e.append("category_id must be 28 (Science & Technology) or 27 (Education)")
+    if len(t) > 70:
+        e.append("title over 70 characters; keep it ~60 so it is not cut off on phones")
     if not m.get("pinned_comment", "").strip():
         e.append("pinned_comment suggestion missing")
     banned = ("guaranteed", "100% viral", "you won't believe")

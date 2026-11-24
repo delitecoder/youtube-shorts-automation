@@ -38,13 +38,17 @@ def test_storyboard_errors(mutate, needle):
 
 
 def test_metadata_validation():
-    ok = {"title": "How Hash Tables Find Data in One Step", "description": "Hash tables explained. #Shorts",
-          "tags": ["hash table", "python"], "pinned_comment": "Where else would hashing help?"}
+    ok = {"title": "How Hash Tables Find Data in One Step", "description": "Hash tables explained.\n#Shorts #Python #Coding",
+          "tags": ["hash table", "python", "data structures", "programming", "coding", "algorithms", "dictionary",
+                   "computer science"], "pinned_comment": "Where else would hashing help?", "category_id": "28"}
     assert validate_metadata(ok) == []
     assert validate_metadata(ok | {"title": "x" * 101})
     assert validate_metadata(ok | {"tags": ["t" * 60] * 10})
     assert validate_metadata(ok | {"description": "<b>"})
     assert validate_metadata(ok | {"title": "Guaranteed results"})
+    assert validate_metadata(ok | {"description": "No hashtags here"})
+    assert validate_metadata(ok | {"tags": ["one", "two"]})
+    assert validate_metadata(ok | {"category_id": "10"})
 
 
 def test_caption_timing_monotonic_and_bounded():

@@ -210,6 +210,7 @@ function sendRequests_(ss) {
     props_().setProperty('req:' + r.video_id, JSON.stringify({
       drive_file_id: r.drive_file_id, sha256: r.sha256, title: r.title, description: r.description,
       tags: r.tags, publish_at: r.proposed_publish_at, thread_id: msg.getThread().getId(),
+      category_id: String((qr.youtube || {}).category_id || '28'),
       request_message_id: msg.getId(), requested_at: sentAt }));
     var ok = casUpdate_(ss, r.video_id, 'AWAITING_APPROVAL', r.version, {
       approval_thread_id: msg.getThread().getId(), approval_request_message_id: msg.getId(),
@@ -432,10 +433,13 @@ function uploadApproved_(ss) {
       var digest = hex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, blob.getBytes()));
       if (digest !== sn.sha256) throw 'checksum mismatch: the file changed after approval';
       var tags = []; try { tags = JSON.parse(sn.tags || '[]'); } catch (e) {}
-      var status = { privacyStatus: 'private', selfDeclaredMadeForKids: false, embeddable: true };
+      var status = { privacyStatus: 'private', selfDeclaredMadeForKids: false, embeddable: true,
+                     publicStatsViewable: true, license: 'youtube' };
+      if (props_().getProperty('SYNTHETIC_MEDIA') === 'true') status.containsSyntheticMedia = true;
       if (publishAt) status.publishAt = publishAt;
       var res = YouTube.Videos.insert({ snippet: { title: sn.title, description: sn.description, tags: tags,
-        categoryId: '27', defaultLanguage: 'en', defaultAudioLanguage: 'en' }, status: status }, 'snippet,status', blob);
+        categoryId: sn.category_id || '28', defaultLanguage: 'en', defaultAudioLanguage: 'en' }, status: status },
+        'snippet,status', blob);
       props_().setProperty('up:' + vid, JSON.stringify({ youtube_id: res.id, at: nowIso_() }));
       casUpdate_(ss, vid, 'UPLOADING', cur.version, { state: 'SCHEDULED', youtube_video_id: res.id,
                                                      proposed_publish_at: publishAt || '' });

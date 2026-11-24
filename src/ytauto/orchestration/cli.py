@@ -394,6 +394,8 @@ def cmd_submit(ctx: Ctx, a) -> int:
     slot = rfc3339(next_slot(now + timedelta(hours=1), ctx.s.publish_time, ctx.s.timezone,
                              ctx.s.min_lead_minutes))
     qr = json.loads(rec.quality_report or "{}") | {"review": review}
+    qr["youtube"] = {"category_id": str(meta.get("category_id", "28")), "made_for_kids": False,
+                     "language": "en", "embeddable": True, "public_stats": True}
     cp = WORK / rec.video_id / "image_credits.json"
     if cp.exists():
         qr["images"] = [{k: e.get(k) for k in ("file", "creator", "license", "page_url", "requires_permission",

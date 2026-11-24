@@ -41,8 +41,9 @@ def test_generated_flow_dry_run(tmp_path):
     (tmp_path / "sb.json").write_text(json.dumps(sb))
     r = run(rt, "render", "--video-id", vid, "--storyboard", str(tmp_path / "sb.json"))
     assert r["ok"] and r["qc"]["ok"]
-    meta = {"title": sb["titles"][0], "description": "How hash tables find data in one step. #Shorts #Python",
-            "tags": ["hash table", "python", "data structures"], "pinned_comment": sb["closing_question"]}
+    meta = {"title": sb["titles"][0], "description": "How hash tables find data in one step.\n#Shorts #Python #Coding",
+            "tags": ["hash table", "python", "data structures", "programming", "coding", "algorithms",
+                     "dictionary", "computer science"], "pinned_comment": sb["closing_question"], "category_id": "28"}
     (tmp_path / "m.json").write_text(json.dumps(meta))
     (tmp_path / "rev.json").write_text(json.dumps({"verdict": "fail", "issues": ["x"]}))
     bad = run(rt, "submit", "--video-id", vid, "--metadata", str(tmp_path / "m.json"),

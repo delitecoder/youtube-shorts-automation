@@ -31,9 +31,18 @@ Write two files (paths given by the caller):
 1. storyboard.json – schema in src/ytauto/production/storyboard.py, with exactly 3 hooks and 3
    titles; set chosen_hook/chosen_title to the strongest TRUTHFUL option; scene 1 narration starts
    with the chosen hook; include references (3–5, from the research).
-2. metadata.json – {"title" (≤100 chars, no clickbait, accurate), "description" (2–4 short
-   lines + sources line + 3–5 relevant hashtags incl. #Shorts), "tags" (8–15, ≤450 chars total),
-   "hook", "pinned_comment" (the audience question)}.
+2. metadata.json – optimised for discovery (honest, no clickbait):
+   - "title": ≤ 60 chars ideal (hard max 70), main keyword in the first 3–4 words, curiosity +
+     clarity (e.g. "MCP Went Stateless: Why It Matters"). No ALL CAPS, no emoji spam.
+   - "description": line 1 = the hook restated with the main keyword; line 2 = one-sentence value
+     ("Learn how … in 60 seconds"); blank line; "Sources:" + URLs; blank line; one line
+     "Subscribe for a new tech story every day."; last line 3–5 hashtags starting with #Shorts then
+     the 2–4 most relevant topic hashtags (e.g. #Shorts #AI #MCP #Programming).
+   - "tags": 8–15, mix broad (programming, artificial intelligence, tech news) and specific
+     (model context protocol, mcp spec 2026), ≤ 450 chars total, no hashtags inside tags.
+   - "category_id": "28" (Science & Technology) for tech/AI/programming, "27" (Education) for
+     general education.
+   - "hook", "pinned_comment" (the audience question, ends with "?").
 If an analytics summary is provided, apply its lessons (e.g. stronger first line, pacing) but
 never fabricate engagement claims. No "guaranteed", fake urgency or misleading thumbnails/titles.
 For an EXISTING video you only write metadata.json, based on the file name/notes you are given;
