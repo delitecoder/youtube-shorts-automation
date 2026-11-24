@@ -21,16 +21,21 @@ def main():
     ap.add_argument("--profile", choices=sorted(PROFILES), required=True)
     ap.add_argument("--client-secret", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--with-apps-script", action="store_true",
+                    help="pipeline only: also allow updating the approval Apps Script (one variable)")
     a = ap.parse_args()
     from google_auth_oauthlib.flow import InstalledAppFlow
-    flow = InstalledAppFlow.from_client_secrets_file(a.client_secret, PROFILES[a.profile]["scopes"])
+    scopes = list(PROFILES[a.profile]["scopes"])
+    if a.with_apps_script and a.profile == "pipeline":
+        scopes += PROFILES["script_admin"]["scopes"]
+    flow = InstalledAppFlow.from_client_secrets_file(a.client_secret, scopes)
     creds = flow.run_local_server(port=0, prompt="consent", access_type="offline")
     if not creds.refresh_token:
         sys.exit("No refresh token returned; remove the app's access at myaccount.google.com and retry.")
     fd = os.open(a.out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w") as fh:
         fh.write(creds.to_json())
-    print(f"Saved {a.profile} token to {a.out} (scopes: {len(PROFILES[a.profile]['scopes'])}). Do not commit it.")
+    print(f"Saved {a.profile} token to {a.out} (scopes: {len(scopes)}). Do not commit it.")
 
 
 if __name__ == "__main__":

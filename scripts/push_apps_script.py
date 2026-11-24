@@ -25,7 +25,9 @@ def main() -> int:
     ap.add_argument("--script-id")
     ap.add_argument("--if-changed", action="store_true")
     a = ap.parse_args()
-    if not os.environ.get("YTA_SCRIPT_OAUTH"):
+    pipe = json.loads(os.environ.get("YTA_PIPELINE_OAUTH", "{}") or "{}")
+    if not os.environ.get("YTA_SCRIPT_OAUTH") and \
+            "https://www.googleapis.com/auth/script.projects" not in pipe.get("scopes", []):
         print(json.dumps({"pushed": False, "reason": "YTA_SCRIPT_OAUTH not set (owner has not granted script updates)"}))
         return 0
     from googleapiclient.discovery import build

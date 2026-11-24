@@ -53,6 +53,12 @@ def credentials(profile: str):
 
     spec = PROFILES[profile]
     raw = os.environ.get(spec["env"], "")
+    if not raw and profile == "script_admin":
+        # One-variable setup: the pipeline login may also carry the Apps Script scope
+        # (scripts/authorize.py --profile pipeline --with-apps-script).
+        pipe = os.environ.get("YTA_PIPELINE_OAUTH", "")
+        if pipe and spec["scopes"][0] in json.loads(pipe).get("scopes", []):
+            raw = pipe
     if not raw:
         raise MissingCredentials(f"{spec['env']} is not set (see docs/deployment.md)")
     info = json.loads(raw)

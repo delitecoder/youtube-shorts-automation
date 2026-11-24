@@ -302,3 +302,11 @@ def test_publisher_never_takes_flags_or_secrets_from_drive():
                        json.dumps({"DRY_RUN": "false", "SPREADSHEET_ID": "S", "GOOGLE_TTS_API_KEY": "k"}).encode())
     keysmod.load_into_env(svc, env, exclude={"DRY_RUN", "GOOGLE_TTS_API_KEY"})
     assert env.get("SPREADSHEET_ID") == "S" and "DRY_RUN" not in env and "GOOGLE_TTS_API_KEY" not in env
+
+
+def test_script_admin_falls_back_to_pipeline_login_only_with_scope(monkeypatch):
+    from ytauto.integrations import google_auth as ga
+    monkeypatch.delenv("YTA_SCRIPT_OAUTH", raising=False)
+    monkeypatch.setenv("YTA_PIPELINE_OAUTH", json.dumps({"scopes": ["https://www.googleapis.com/auth/drive"]}))
+    with pytest.raises(ga.MissingCredentials):
+        ga.credentials("script_admin")
