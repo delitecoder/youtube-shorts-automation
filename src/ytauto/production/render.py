@@ -226,11 +226,11 @@ def draw_visual(d: ImageDraw.ImageDraw, v: dict, p: float, accent, t: float,
         d.line([MARGIN_L + 30, top + 20, MARGIN_L + 30, top + 20 + int(650 * ease(p * 1.5))], fill=accent, width=6)
         for i, e in enumerate(ev):
             a = ease(p * (len(ev) + 1) - i)
-            y = top + 20 + i * 140
+            y = top + 20 + i * 165
             d.ellipse([MARGIN_L + 14, y, MARGIN_L + 46, y + 32], fill=ACCENTS[i % 4] + (int(255 * a),))
             d.text((MARGIN_L + 80, y - 12), e["label"], font=F["bodyb"], fill=ACCENTS[i % 4] + (int(255 * a),))
-            d.text((MARGIN_L + 80, y + 48), wrap(d, e.get("text", ""), F["small"], width - 100)[0] if e.get("text") else "",
-                   font=F["small"], fill=WHITE + (int(255 * a),))
+            for j, line in enumerate(wrap(d, e.get("text", ""), F["small"], width - 100)[:2] if e.get("text") else []):
+                d.text((MARGIN_L + 80, y + 48 + j * 42), line, font=F["small"], fill=WHITE + (int(255 * a),))
     elif kind == "question":
         pulse = 1 + 0.03 * math.sin(t * 4)
         lines = wrap(d, v["question"], F["q"], width)
@@ -266,7 +266,9 @@ def draw_captions(d, cap: dict | None, t: float, accent) -> None:
 def render(storyboard: dict, scene_audio: list[Path], workdir: Path, out_mp4: Path,
            preset: str = "veryfast", music: bool = True, sfx: bool = True,
            sfx_dir: Path | None = None, music_dir: Path | None = None) -> dict:
+    from .storyboard import normalize
     workdir.mkdir(parents=True, exist_ok=True)
+    storyboard = normalize(storyboard)
     scenes = storyboard["scenes"]
     images = {}
     for s in scenes:

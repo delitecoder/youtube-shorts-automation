@@ -113,3 +113,13 @@ def test_full_render_meets_output_spec(tmp_path):
     rep = render(sb, clips, tmp_path, tmp_path / "out.mp4", preset="ultrafast")
     assert rep["ok"], rep["checks"]
     assert (tmp_path / "captions.srt").read_text().strip()
+
+
+def test_simple_string_visuals_are_normalised():
+    from ytauto.production.storyboard import normalize_visual
+    c = normalize_visual({"type": "comparison", "left": "Before: stateful, two-way", "right": "Now stateless"})
+    assert c["left"] == {"title": "Before", "items": ["stateful", "two-way"]}
+    assert c["right"] == {"title": "After", "items": ["Now stateless"]}
+    t = normalize_visual({"type": "timeline", "events": ["2026-07-28: spec live", "no colon here"]})
+    assert t["events"][0] == {"label": "2026-07-28", "text": "spec live"}
+    assert t["events"][1]["label"] and isinstance(t["events"][1]["text"], str)

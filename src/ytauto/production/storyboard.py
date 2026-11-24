@@ -52,6 +52,47 @@ def estimate(sb: dict) -> dict:
     return {"words": total_words, "est_seconds": round(t, 1), "scenes": scenes}
 
 
+def _split(text: str, default_label: str) -> tuple[str, str]:
+    head, sep, tail = str(text).partition(":")
+    return (head.strip(), tail.strip()) if sep and len(head) <= 24 else (default_label, str(text).strip())
+
+
+def normalize_visual(v: dict) -> dict:
+    """Accept the simple string forms writers often use and convert them to the renderer's shape:
+    comparison left/right "Before: a, b" -> {"title", "items"}; timeline "2026-07-28: text" ->
+    {"label", "text"}; bullets/diagram items coerced to strings."""
+    v = dict(v)
+    t = v.get("type")
+    if t == "comparison":
+        for side, default in (("left", "Before"), ("right", "After")):
+            x = v.get(side)
+            if isinstance(x, str):
+                title, rest = _split(x, default)
+                v[side] = {"title": title, "items": [i.strip() for i in rest.split(",") if i.strip()]}
+            elif isinstance(x, dict):
+                x.setdefault("title", default)
+                x["items"] = [str(i) for i in x.get("items", [])]
+    elif t == "timeline":
+        ev = []
+        for e in v.get("events", []):
+            if isinstance(e, str):
+                label, text = _split(e, "")
+                ev.append({"label": label or text[:12], "text": text if label else ""})
+            elif isinstance(e, dict):
+                ev.append({"label": str(e.get("label", "")), "text": str(e.get("text", ""))})
+        v["events"] = ev
+    elif t in ("bullets", "diagram"):
+        key = "items" if t == "bullets" else "nodes"
+        v[key] = [str(i) for i in v.get(key, [])]
+    return v
+
+
+def normalize(sb: dict) -> dict:
+    out = dict(sb)
+    out["scenes"] = [dict(s, visual=normalize_visual(s.get("visual", {}))) for s in sb.get("scenes", [])]
+    return out
+
+
 def with_outro(sb: dict, text: str) -> dict:
     """Append the standard subscribe end card (narration + animated button)."""
     out = dict(sb)
@@ -86,7 +127,7 @@ def validate_storyboard(sb: dict, require_sources: bool = True) -> tuple[list[st
             e.append(f"scene {i}: on_screen_text over 42 chars")
         if s.get("transition", "cut") not in TRANSITIONS:
             e.append(f"scene {i}: unknown transition")
-        v = s.get("visual", {})
+        v = normalize_visual(s.get("visual", {}))
         req = VISUAL_TYPES.get(v.get("type"))
         if req is None:
             e.append(f"scene {i}: visual.type must be one of {sorted(VISUAL_TYPES)}")
@@ -94,6 +135,10 @@ def validate_storyboard(sb: dict, require_sources: bool = True) -> tuple[list[st
             e.append(f"scene {i}: visual missing {sorted(missing)}")
         if "subscribe" in s.get("narration", "").lower():
             w.append(f"scene {i}: the subscribe ask is added automatically; remove it from the script")
+        if v.get("type") == "comparison" and not all(v[k].get("items") for k in ("left", "right") if k in v):
+            e.append(f"scene {i}: comparison sides need items")
+        if v.get("type") == "timeline" and not v.get("events"):
+            e.append(f"scene {i}: timeline needs events")
         if v.get("type") == "code" and len(v.get("code", "").splitlines()) > 12:
             e.append(f"scene {i}: code longer than 12 lines")
     if scenes and isinstance(sb.get("chosen_hook"), int) and 0 <= sb["chosen_hook"] < len(sb["hooks"]):
