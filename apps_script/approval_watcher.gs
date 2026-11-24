@@ -23,7 +23,7 @@
 
 // Bump on every change and add an entry to apps_script/CHANGELOG.md: the daily run compares this
 // with the deployed version and emails the approver when an update is needed.
-var SCRIPT_VERSION = '2026.11.24-3';
+var SCRIPT_VERSION = '2026.11.24-4';
 var TTL_HOURS = 24;
 var SLOT_MARGIN_MIN = 15;            // approvals must arrive this long before the publish slot
 var MAX_UPLOAD_BYTES = 45 * 1024 * 1024;   // Apps Script blob limit (generated Shorts are ~5 MB)
@@ -623,6 +623,42 @@ function sendNotifications_(ss) {
     : alerts.length ? '⚠️ Claude usage limit reached — no new videos until it resets'
     : uploaded ? '✅ Short uploaded' : audits.length === pending.length ? '📈 Daily views audit'
     : '[YouTube automation] ' + pending.length + ' update(s)';
-  GmailApp.sendEmail(approver, subject, body);
+  GmailApp.sendEmail(approver, subject, body, { htmlBody: notificationHtml_(pending, subject) });
   pending.forEach(function (r) { t.sheet.getRange(r._row, col).setValue(nowIso_()); });
+}
+
+var SEVERITY_STYLE = {
+  ALERT:   { label: 'Alert',          color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' },
+  ACTION:  { label: 'Action needed',  color: '#c2410c', bg: '#fff7ed', border: '#fed7aa' },
+  ERROR:   { label: 'Error',          color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' },
+  WARNING: { label: 'Warning',        color: '#a16207', bg: '#fefce8', border: '#fde68a' },
+  AUDIT:   { label: 'Views audit',    color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
+  INFO:    { label: 'Update',         color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' }
+};
+
+/** Linkify URLs and keep line breaks; everything else is escaped. */
+function richText_(s) {
+  return esc_(s).replace(/(https:\/\/[^\s<]+)/g, '<a href="$1" style="color:#2563eb">$1</a>').replace(/\n/g, '<br>');
+}
+
+/** Neat HTML version of the notification email: one coloured card per update. */
+function notificationHtml_(rows, subject) {
+  var cards = rows.map(function (r) {
+    var st = SEVERITY_STYLE[r.severity] || SEVERITY_STYLE.INFO;
+    var yt = String(r.message).match(/https:\/\/youtu\.be\/[\w-]+/);
+    return '<div style="background:' + st.bg + ';border:1px solid ' + st.border + ';border-radius:12px;padding:14px 16px;margin:0 0 12px">' +
+      '<div style="font-size:12px;font-weight:bold;letter-spacing:1px;color:' + st.color + ';text-transform:uppercase">' +
+      esc_(st.label) + (r.video_id ? ' · ' + esc_(r.video_id) : '') + '</div>' +
+      '<div style="font-size:14px;line-height:1.5;margin-top:6px;color:#1b1f2a">' + richText_(r.message) + '</div>' +
+      (yt ? '<p style="margin:12px 0 0"><a href="' + yt[0] + '" style="background:#dc2626;color:#fff;padding:10px 18px;' +
+            'border-radius:10px;text-decoration:none;font-weight:bold;display:inline-block">▶ Watch on YouTube</a></p>' : '') +
+      '<div style="font-size:11px;color:#8a90a6;margin-top:8px">' + ist_(r.logged_at) + ' · ' + esc_(r.component) + '</div></div>';
+  }).join('');
+  return '<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#1b1f2a">' +
+    '<div style="background:#0f1530;color:#fff;padding:18px 22px;border-radius:14px 14px 0 0">' +
+    '<div style="font-size:12px;letter-spacing:2px;color:#9fb0ff">YOUTUBE SHORTS AUTOMATION</div>' +
+    '<div style="font-size:20px;font-weight:bold;margin-top:6px">' + esc_(subject) + '</div></div>' +
+    '<div style="border:1px solid #e3e6f0;border-top:0;border-radius:0 0 14px 14px;padding:18px 22px">' + cards +
+    '<p style="font-size:11px;color:#99a;margin:6px 0 0">Sent by your approval Apps Script (version ' + SCRIPT_VERSION + ').</p>' +
+    '</div></div>';
 }

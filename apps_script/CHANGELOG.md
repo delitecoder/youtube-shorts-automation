@@ -2,6 +2,12 @@
 
 The owner updates the script; Claude never pushes it. Newest first. Each entry = one SCRIPT_VERSION.
 
+## 2026.11.24-4
+- All notification emails (upload confirmations, daily views audit, alerts, test messages, update
+  notices) are now neat HTML: one colour-coded card per update, clickable links and a
+  "Watch on YouTube" button for uploads. Plain text is kept as a fallback.
+- No new service or permission.
+
 ## 2026.11.24-3
 - Approval email also offers up to 3 **skipped videos** from the last 7 days ("Upload this one"
   button or reply `APPROVED <their id>`). Choosing one uses today's slot; the others, including
