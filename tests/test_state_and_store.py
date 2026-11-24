@@ -61,3 +61,20 @@ def test_video_id_sequence_uses_ist_date():
     assert next_video_id([], now) == "VIDEO-20261125-001"
     assert next_video_id(["VIDEO-20261125-001", "VIDEO-20261125-007", "VIDEO-20261124-009"], now) \
         == "VIDEO-20261125-008"
+
+
+def test_windows_lock_path(tmp_path, monkeypatch):
+    """Simulate Windows (no fcntl) with a fake msvcrt and check the store still works."""
+    import types
+
+    import ytauto.store as st
+    calls = []
+    fake = types.SimpleNamespace(LK_NBLCK=2, LK_UNLCK=0,
+                                 locking=lambda fd, mode, n: calls.append(mode))
+    monkeypatch.setattr(st, "fcntl", None)
+    monkeypatch.setattr(st, "msvcrt", fake, raising=False)
+    store = st.JsonFileStore(tmp_path / "w.json")
+    rec = store.create(VideoRecord(video_id="VIDEO-20261124-001"))
+    store.transition(rec.video_id, State.DISCOVERED, State.RESEARCHING, rec.version)
+    assert store.get(rec.video_id).state == State.RESEARCHING
+    assert calls and calls.count(2) == calls.count(0)        # every lock was released

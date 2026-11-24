@@ -12,7 +12,14 @@ transition do not exist in normal operation.
 """
 from __future__ import annotations
 
-import fcntl
+import os
+import time
+
+try:                       # Linux / macOS
+    import fcntl
+except ImportError:        # Windows
+    fcntl = None
+    import msvcrt
 import json
 import re
 import secrets
@@ -96,6 +103,32 @@ def _apply(rec: VideoRecord, expected: State | None, new: State | None,
     return VideoRecord.from_row(row)
 
 
+# ------------------------------------------------------------------ portable file lock
+def _lock(fh, write: bool) -> None:
+    if fcntl is not None:
+        fcntl.flock(fh, fcntl.LOCK_EX if write else fcntl.LOCK_SH)
+        return
+    # Windows: exclusive lock on the first byte (msvcrt has no shared locks); retry up to ~30 s
+    for _ in range(300):
+        try:
+            fh.seek(0)
+            msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+            return
+        except OSError:
+            time.sleep(0.1)
+    raise TimeoutError("could not lock the state file")
+
+
+def _unlock(fh) -> None:
+    if fcntl is not None:
+        fcntl.flock(fh, fcntl.LOCK_UN)
+        return
+    fh.flush()
+    os.fsync(fh.fileno())
+    fh.seek(0)
+    msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+
+
 # ------------------------------------------------------------------ JSON file store
 class JsonFileStore:
     def __init__(self, path: Path):
@@ -107,7 +140,7 @@ class JsonFileStore:
     @contextmanager
     def _locked(self, write: bool):
         with open(self.path, "r+") as fh:
-            fcntl.flock(fh, fcntl.LOCK_EX if write else fcntl.LOCK_SH)
+            _lock(fh, write)
             data = json.loads(fh.read() or "{}")
             for t in TABS:
                 data.setdefault(t, [])
@@ -116,7 +149,7 @@ class JsonFileStore:
                 fh.seek(0)
                 fh.truncate()
                 fh.write(json.dumps(data, indent=1))
-            fcntl.flock(fh, fcntl.LOCK_UN)
+            _unlock(fh)
 
     def get(self, video_id):
         with self._locked(False) as d:
