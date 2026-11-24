@@ -1,10 +1,11 @@
 Daily YouTube Shorts production run (fresh cloud session).
 
-1. Get the code: `git clone --depth 1 https://github.com/delitecoder/youtube-shorts-automation.git`
-   then `cd youtube-shorts-automation`. If the clone fails or the repository is empty, stop and
-   report "repository not available".
-2. Install: `pip install -q -r requirements.txt` and `bash scripts/fetch_kokoro.sh`
-   (and `pip install -q -r requirements-vision.txt` if image scenes are expected and time allows).
+1. Get the code: if a `youtube-shorts-automation` checkout exists (the environment setup script
+   makes one), `cd` into it and `git pull --ff-only`; otherwise
+   `git clone --depth 1 https://github.com/delitecoder/youtube-shorts-automation.git` and `cd` into it.
+   If that fails or the repository is empty, stop and report "repository not available".
+2. Install if not already done: `pip install -q -r requirements.txt` and `bash scripts/fetch_kokoro.sh`
+   (and `pip install -q -r requirements-vision.txt` only if the storyboard has image scenes).
 3. Run `PYTHONPATH=src python -m ytauto doctor`. If `setup_complete` is false or `ok` is false,
    stop immediately and reply with one line naming what is missing (see docs/SETUP.md). Do not
    continue in that case — this keeps unconfigured runs cheap.
