@@ -42,6 +42,16 @@ def get_publisher():
         from ytauto.integrations.youtube import YouTube
         from ytauto.publishing.publisher import Publisher
 
+        # Non-secret settings (spreadsheet, folders, approver) come from Drive 00_Config/keys.json.
+        # Safety flags never do: DRY_RUN / UPLOAD_ENABLED / PUBLICATION_ENABLED are Cloud Run env only.
+        from ytauto.integrations.keys import load_into_env
+        try:
+            rep = load_into_env(build_service("drive", "v3", "publisher"),
+                                exclude={"DRY_RUN", "PROMOTION_ENABLED", "GOOGLE_TTS_API_KEY",
+                                         "GOOGLE_VISION_API_KEY", "BLUESKY_APP_PASSWORD"})
+            log.info("keys.json loaded: %s", ",".join(rep.get("loaded", [])))
+        except Exception as e:  # noqa: BLE001
+            log.warning("keys.json not loaded: %s", type(e).__name__)
         s = Settings.from_env()
         store = SheetsStore(build_service("sheets", "v4", "publisher"), s.spreadsheet_id)
         _publisher = Publisher(

@@ -294,3 +294,11 @@ def test_bootstrap_keys_merge_keeps_owner_values():
     assert m["GOOGLE_TTS_API_KEY"] == "k" and m["DRY_RUN"] == "true" and m["SPREADSHEET_ID"] == "S2"
     assert m["ARCHIVE_FOLDER_ID"] == "A1" and m["APPROVER_EMAIL"] == "me@example.com" and m["_apps_script_id"] == "SCRIPT"
     assert bs.merge_keys({"DRY_RUN": "false"}, ids, "S", "")["DRY_RUN"] == "false"
+
+
+def test_publisher_never_takes_flags_or_secrets_from_drive():
+    env = {"YTA_KEYS_FILE_ID": "id1"}
+    svc = FakeDriveSvc({"ownedByMe": True, "permissions": []},
+                       json.dumps({"DRY_RUN": "false", "SPREADSHEET_ID": "S", "GOOGLE_TTS_API_KEY": "k"}).encode())
+    keysmod.load_into_env(svc, env, exclude={"DRY_RUN", "GOOGLE_TTS_API_KEY"})
+    assert env.get("SPREADSHEET_ID") == "S" and "DRY_RUN" not in env and "GOOGLE_TTS_API_KEY" not in env

@@ -82,8 +82,8 @@ def parse(raw: bytes | str) -> tuple[dict[str, str], list[str]]:
     return values, ignored
 
 
-def load_into_env(svc, env=os.environ) -> dict:
-    """Returns a report with key NAMES only."""
+def load_into_env(svc, env=os.environ, exclude: set[str] = frozenset()) -> dict:
+    """Returns a report with key NAMES only. `exclude` names are never taken from the file."""
     file_id = env.get("YTA_KEYS_FILE_ID") or _find_by_name(svc)
     if not file_id:
         return {"loaded": [], "note": "no keys.json found (YouTubeAutomation/00_Config/keys.json)"}
@@ -93,6 +93,8 @@ def load_into_env(svc, env=os.environ) -> dict:
     values, ignored = parse(raw)
     loaded, kept = [], []
     for k, v in values.items():
+        if k in exclude:
+            continue
         if env.get(k):
             kept.append(k)
         else:

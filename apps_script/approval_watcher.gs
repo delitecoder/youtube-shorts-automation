@@ -309,7 +309,9 @@ function hex_(bytes) { return bytes.map(function (b) { return ('0' + (b & 0xff).
 function callPublisher_(ss) {
   var dry = props_().getProperty('DRY_RUN') || String(keysFile_().DRY_RUN || 'true');
   if (dry !== 'false') return;  // never call the publisher in dry run
-  var url = prop_('PUBLISHER_URL'), secret = props_().getProperty('WEBHOOK_SECRET');
+  var url = props_().getProperty('PUBLISHER_URL') || keysFile_().PUBLISHER_URL;
+  if (!url) return;   // publisher not deployed yet: approved items simply wait (no error spam)
+  var secret = props_().getProperty('WEBHOOK_SECRET');
   if (!secret || secret.length < 32) throw new Error('Set Script Property WEBHOOK_SECRET (>= 32 chars) before DRY_RUN=false');
   table_(ss, 'VideoQueue').rows.forEach(function (r) {
     if (r.state !== 'APPROVED' || r.webhook_status === 'done') return;
