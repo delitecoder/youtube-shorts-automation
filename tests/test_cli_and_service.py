@@ -128,3 +128,20 @@ def test_service_rejects_bad_video_id(client):
     body = b'{"video_id": "../../etc"}'
     assert c.post("/v1/approved", data=body, headers=signed(body)).status_code == 400
     assert not calls
+
+
+def test_resume_after_interrupted_run(tmp_path):
+    rt = tmp_path / "rt"
+    vid = run(rt, "new-item")["video_id"]
+    wd = rt / "work" / vid
+    wd.mkdir(parents=True)
+    (wd / "research.json").write_text('{"topic": "x"}')
+    (wd / "voice.wav").write_bytes(b"RIFF")                    # not checkpointed
+    assert run(rt, "checkpoint", "--video-id", vid)["ok"]
+    import shutil
+    shutil.rmtree(wd)                                         # simulate a fresh session
+    d = run(rt, "discover")
+    assert d["action"] == "resume" and d["video_id"] == vid
+    r = run(rt, "restore", "--video-id", vid)
+    assert r["restored"] == ["research.json"] and (wd / "research.json").exists()
+    assert r["next_step"] == "research"

@@ -32,6 +32,9 @@ Run from the repo root with `PYTHONPATH=src`. Work files go in `runtime/work/<VI
 2. `python -m ytauto reconcile` (marks scheduled videos public, moves files, optional promotion).
 3. `python -m ytauto analytics --snapshot` → keep the `summary` JSON for the storywriter.
 4. `python -m ytauto discover` →
+   - `resume`: an earlier run stopped part-way (e.g. token limit). Run
+     `python -m ytauto restore --video-id <id>` and continue from the reported `next_step`
+     (research → storyboard → review → render → submit), skipping steps whose files exist.
    - `none`: report the reason and stop.
    - `existing_video`: `python -m ytauto prepare-existing --file-id <id>`. If not ok, stop (a
      manual-review notification is emailed). If ok: **storywriter** writes `metadata.json` only →
@@ -41,18 +44,27 @@ Run from the repo root with `PYTHONPATH=src`. Work files go in `runtime/work/<VI
    - `research`: `python -m ytauto new-item` → step 5.
 5. **researcher** (haiku) → `research.json` (give it ResearchHistory topic_keys to avoid) →
    `python -m ytauto record-research --video-id … --file research.json` (fix and retry once on errors).
+   After EVERY step from here on: `python -m ytauto checkpoint --video-id …` (saves work to Drive so
+   the next session can continue if this one stops).
 6. **storywriter** (sonnet) → `storyboard.json` + `metadata.json` →
    `python -m ytauto validate-storyboard --file storyboard.json` (add `--document-based` for docs).
-   If it has `image` scenes: `python -m ytauto resolve-images --storyboard storyboard.json`
+   Every video should have 1–2 `image` scenes (licensed internet photos):
+   `pip install -q -r requirements-vision.txt` (if not installed), then
+   `python -m ytauto resolve-images --storyboard storyboard.json`
    (internet images: CC0/PD/CC BY only, checked locally by OmniVision; owner images from Drive
    `References/Images` via `fetch-asset`). Unresolved scenes become title cards automatically.
 7. **quality-reviewer** (haiku) → `review.json`. If `fail`, one revision by storywriter, review again.
    Still failing → stop and report (item stays in its state for a human).
-8. `python -m ytauto render --video-id … --storyboard storyboard.json` (QC must be ok).
+8. `python -m ytauto render --video-id … --storyboard storyboard.json` (QC must be ok). The HyperFrames
+   engine (animated HTML/GSAP: transitions, kinetic text, particles, light sweeps, Ken Burns images)
+   is used automatically; if it fails the Pillow renderer takes over (`engine` in the output).
+   Needs `npm ci --prefix renderer/hyperframes` once per container.
    Voice: Google TTS → Kokoro (offline) → Piper; one voice per video. Adds music (ducked), SFX
    and the automatic subscribe end card. Image/SFX/music credits are added to the description.
 9. `python -m ytauto submit --video-id … --metadata metadata.json --review review.json`.
-   Apps Script emails the approval request; the run ends here. After a successful upload the
+   Apps Script emails a neat HTML approval request (poster + Drive preview button). The approver
+   replies `APPROVED VIDEO-…` before the evening slot (19:30 IST − 15 min) and the Apps Script uploads
+   it scheduled for 19:30 IST; no reply = skipped. Uploading never needs Claude. After a successful upload the
    video file is moved to the Drive `Archive` folder (Apps Script; `reconcile` repeats it if needed).
 10. Optionally: storywriter writes Reddit drafts JSON → `python -m ytauto reddit-drafts …`
     (drafts only; never post).

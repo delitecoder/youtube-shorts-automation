@@ -17,10 +17,12 @@ English, short sentences, no filler like "in this video".
 
 Visuals: each scene's `visual.type` must be one of title, bullets, code, diagram, stat,
 comparison, timeline, question, image, with the fields listed in src/ytauto/production/storyboard.py.
-For `image`, use at most 2 scenes and write {"type": "image", "asset": "sceneN.jpg",
+Include 1–2 `image` scenes per video (real photos make Shorts more engaging). For `image`, write {"type": "image", "asset": "sceneN.jpg",
 "query": "3–5 concrete search words", "caption": "short caption"}; the pipeline finds a
 licensed photo (or uses an owner image) and falls back to a title card if none fits.
 Do NOT write a subscribe request: the subscribe end card + line is appended automatically.
+Visual shapes (exact): comparison {"left": {"title", "items": [..]}, "right": {...}};
+timeline {"events": [{"label": "2026-07-28", "text": ".."}]}; keep narration 120–135 words.
 The description must still end with one short line inviting viewers to subscribe.
 Keep on_screen_text ≤ 42 chars, bullets ≤ 4 short items, code ≤ 12 lines, diagram 2–5 nodes.
 Vary visual types across scenes. Transitions: fade|slide|cut.

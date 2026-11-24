@@ -27,6 +27,8 @@ from ..store import log_error, next_video_id
 from .context import Ctx
 
 WORK = RUNTIME_DIR / "work"
+PIPELINE_STATES = {State.DISCOVERED, State.RESEARCHING, State.GENERATING, State.QUALITY_CHECK}
+CHECKPOINT_SKIP = (".wav",)      # voice/music are cheap to regenerate; everything else is kept
 
 
 def out(obj) -> None:
@@ -89,11 +91,18 @@ def cmd_init(ctx: Ctx, a) -> int:
 
 def cmd_discover(ctx: Ctx, a) -> int:
     recs = ctx.store.all()
-    pending = [r.video_id for r in recs if r.state in ACTIVE_STATES]
-    if pending:
-        out({"action": "none", "reason": f"item(s) still in progress: {pending}"})
+    # Unfinished production work (e.g. a run that ran out of tokens) is resumed first.
+    resumable = [r for r in recs if r.state in PIPELINE_STATES]
+    if resumable:
+        r = sorted(resumable, key=lambda x: x.video_id)[0]
+        out({"action": "resume", "video_id": r.video_id, "state": r.state.value,
+             "next": "python -m ytauto restore --video-id " + r.video_id})
         return 0
     today = _today_local(ctx).strftime("%Y%m%d")
+    waiting_today = [r.video_id for r in recs if r.state == State.AWAITING_APPROVAL and r.video_id.startswith(f"VIDEO-{today}-")]
+    if waiting_today:
+        out({"action": "none", "reason": f"today's video is waiting for approval: {waiting_today}"})
+        return 0
     if any(r.video_id.startswith(f"VIDEO-{today}-") for r in recs) and not a.force:
         out({"action": "none", "reason": "already produced an item today (one per day)"})
         return 0
@@ -443,6 +452,70 @@ def _archive(ctx: Ctx, rec, done: list) -> None:
         done.append({"video_id": rec.video_id, "moved": "Archive"})
 
 
+def _checkpoint_name(vid: str) -> str:
+    return f"{vid}_work.zip"
+
+
+def cmd_checkpoint(ctx: Ctx, a) -> int:
+    """Save runtime/work/<VIDEO_ID> (JSON, assets, rendered MP4; no WAVs) to Drive 02_Generated so a
+    later session can continue after a stop (token limit, crash, container reset)."""
+    import zipfile
+    wd = WORK / a.video_id
+    if not wd.exists():
+        out({"ok": False, "error": "nothing to checkpoint"})
+        return 2
+    zp = WORK / _checkpoint_name(a.video_id)
+    with zipfile.ZipFile(zp, "w", zipfile.ZIP_DEFLATED) as z:
+        for f in sorted(wd.rglob("*")):
+            rel = f.relative_to(wd)
+            if f.is_file() and not f.name.endswith(CHECKPOINT_SKIP) and "hf" not in rel.parts \
+                    and "_candidates" not in rel.parts:
+                z.write(f, rel.as_posix())
+    def push():
+        q = (f"name = '{zp.name}' and trashed = false and '{ctx.s.folder('generated')}' in parents")
+        old = ctx.drive.svc.files().list(q=q, fields="files(id)").execute().get("files", [])
+        for o in old:
+            ctx.drive.svc.files().delete(fileId=o["id"]).execute()
+        return ctx.drive.upload(zp, "generated", "application/zip", f"checkpoint {a.video_id}")
+    ctx.external_write(f"checkpoint {zp.name} to 02_Generated", push)
+    out({"ok": True, "checkpoint": zp.name, "bytes": zp.stat().st_size})
+    return 0
+
+
+def cmd_restore(ctx: Ctx, a) -> int:
+    """Restore a checkpoint saved by an earlier session into runtime/work/<VIDEO_ID>."""
+    import zipfile
+    wd = WORK / a.video_id
+    wd.mkdir(parents=True, exist_ok=True)
+    zp = WORK / _checkpoint_name(a.video_id)
+    if not ctx.s.dry_run:
+        q = (f"name = '{zp.name}' and trashed = false and '{ctx.s.folder('generated')}' in parents")
+        hits = ctx.drive.svc.files().list(q=q, fields="files(id)").execute().get("files", [])
+        if not hits:
+            out({"ok": True, "restored": [], "note": "no checkpoint; continue from the current state"})
+            return 0
+        ctx.drive.download(hits[0]["id"], zp)
+    if not zp.exists():
+        out({"ok": True, "restored": [], "note": "no checkpoint"})
+        return 0
+    restored = []
+    with zipfile.ZipFile(zp) as z:
+        for n in z.namelist():
+            target = (wd / n).resolve()
+            if not str(target).startswith(str(wd.resolve())):      # zip-slip guard
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(z.read(n))
+            restored.append(n)
+    rec = ctx.store.get(a.video_id)
+    have = {n.split("/")[-1] for n in restored}
+    nxt = {"DISCOVERED": "research", "RESEARCHING": "storyboard" if "storyboard.json" not in have else "review/render",
+           "GENERATING": "render", "QUALITY_CHECK": "submit" if f"{a.video_id}.mp4" in have else "render"}
+    out({"ok": True, "restored": sorted(restored)[:30], "state": rec.state.value if rec else "?",
+         "next_step": nxt.get(rec.state.value if rec else "", "check state")})
+    return 0
+
+
 def cmd_reconcile(ctx: Ctx, a) -> int:
     """Uploaded videos -> Drive Archive; SCHEDULED -> PUBLISHED once public; optional promotion."""
     done = []
@@ -531,6 +604,8 @@ def main(argv=None) -> int:
     p = sub.add_parser("fetch-asset"); p.add_argument("--video-id", required=True); p.add_argument("--file-id", required=True)
     p.add_argument("--name", required=True)
     sub.add_parser("sync-library")
+    p = sub.add_parser("checkpoint"); p.add_argument("--video-id", required=True)
+    p = sub.add_parser("restore"); p.add_argument("--video-id", required=True)
     sub.add_parser("reconcile")
     p = sub.add_parser("analytics"); p.add_argument("--snapshot", action="store_true")
     p = sub.add_parser("status"); p.add_argument("--limit", type=int, default=15)
