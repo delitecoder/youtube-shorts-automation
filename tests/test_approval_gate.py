@@ -137,10 +137,26 @@ def test_missing_approver_config_rejects(store, t0):
 
 def test_expiry_helper(store, t0):
     rec = awaiting_record(store)
-    assert not is_expired(rec, t0 + timedelta(hours=23), 24)
-    assert is_expired(rec, t0 + timedelta(hours=24, seconds=1), 24)
+    # publish slot = request + 9 h -> approvals close at request + 8 h 45 min
+    assert not is_expired(rec, t0 + timedelta(hours=8, minutes=44), 24)
+    assert is_expired(rec, t0 + timedelta(hours=8, minutes=46), 24)
 
 
 def test_new_text_strips_mobile_signature():
     assert new_text(f"YES {VID}\nSent from my iPhone") == [f"YES {VID}"]
     assert parse_command(f"  YES {VID}  \r\n") == ("YES", VID)
+
+
+@pytest.mark.parametrize("word,decision", [("APPROVED", "YES"), ("APPROVE", "YES"), ("REJECTED", "NO"), ("REJECT", "NO")])
+def test_word_synonyms(store, t0, word, decision):
+    assert check(store, t0, ev(t0, body=f"{word} {VID}")) == decision
+
+
+def test_reply_after_slot_deadline_is_skipped(store, t0):
+    # conftest: publish slot is request + 9 h -> deadline is request + 8 h 45 min
+    with pytest.raises(ApprovalRejected, match="expired"):
+        check(store, t0, ev(t0, minutes=8 * 60 + 50), now_minutes=8 * 60 + 51)
+
+
+def test_reply_just_before_slot_deadline_is_accepted(store, t0):
+    assert check(store, t0, ev(t0, minutes=8 * 60 + 40), now_minutes=8 * 60 + 41) == "YES"

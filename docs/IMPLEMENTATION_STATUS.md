@@ -64,7 +64,7 @@ Mutation check: removing the SENT-label check, request-time check, or checksum c
 
 ## Blockers / owner actions
 1. Repository: github.com/delitecoder/youtube-shorts-automation (public; no secrets or personal data in it).
-2. Google Cloud setup + tokens (docs/deployment.md §1–3), submit YouTube API audit.
+2. Google Cloud setup + tokens (docs/deployment.md §1–3). No YouTube audit needed (lifted 2026-11-02).
 3. Decide on billing (TTS + Cloud Run) or the zero-billing fallback (docs/costs.md).
 
 ## Next action

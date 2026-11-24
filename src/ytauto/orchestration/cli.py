@@ -6,8 +6,10 @@ Model calls never happen here.
 from __future__ import annotations
 
 import argparse
+import os
 import json
 import shutil
+import subprocess
 import sys
 from datetime import timedelta
 from pathlib import Path
@@ -228,7 +230,8 @@ def cmd_render(ctx: Ctx, a) -> int:
         clips, provider, fallbacks = synthesize_all(texts, wd, ctx.s, ctx.store,
                                                     log=lambda m: print(m, file=sys.stderr))
         report = render(full, clips, wd, wd / f"{rec.video_id}.mp4", music=ctx.s.music_enabled,
-                        sfx=ctx.s.sfx_enabled, sfx_dir=LIBRARY / "sfx", music_dir=LIBRARY / "music")
+                        sfx=ctx.s.sfx_enabled, sfx_dir=LIBRARY / "sfx", music_dir=LIBRARY / "music",
+                        engine=os.environ.get("RENDER_ENGINE", "auto"))
     except Exception as e:  # noqa: BLE001
         log_error(ctx.store, "render", str(e), rec.video_id)
         out({"ok": False, "error": str(e)[:500], "hint": "fix and re-run render (state stays GENERATING)"})
@@ -243,6 +246,7 @@ def cmd_render(ctx: Ctx, a) -> int:
                                references=json.dumps(sb.get("references", [])),
                                quality_report=json.dumps({"render_qc": report}))
     out({"ok": True, "video": str(wd / f"{rec.video_id}.mp4"), "voice": provider,
+         "engine": report.get("engine"), "fallback_reason": report.get("fallback_reason", ""),
          "fallbacks": fallbacks, "qc": {k: report[k] for k in ("ok", "duration", "lufs")},
          "tts_chars": sum(len(t) for t in texts)})
     return 0
@@ -403,6 +407,21 @@ def cmd_submit(ctx: Ctx, a) -> int:
         file_id = rec.drive_file_id
     ctx.external_write(f"move {file_id} to 03_Awaiting_Approval",
                        lambda: ctx.drive.move(file_id, "awaiting_approval"))
+    # Poster frame for the approval email (embedded inline; private Drive file next to the video).
+    src = Path(a.video or WORK / rec.video_id / f"{rec.video_id}.mp4") if rec.source_type == "GENERATED" \
+        else WORK / "src" / (rec.file_name or "")
+    poster = WORK / rec.video_id / "poster.jpg"
+    if src.exists():
+        poster.parent.mkdir(parents=True, exist_ok=True)
+        dur = float(rec.duration_s or 10)
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{min(3.0, dur / 3):.2f}", "-i", str(src),
+                        "-frames:v", "1", "-vf", "scale=540:-2", "-q:v", "4", str(poster)], check=False)
+    if poster.exists():
+        up_p = ctx.external_write(f"upload poster for {rec.video_id}",
+                                  lambda: ctx.drive.upload(poster, "awaiting_approval", "image/jpeg"))
+        if up_p:
+            qr["poster_file_id"] = up_p["id"]
+            fields["quality_report"] = json.dumps(qr)[:45000]
     fields["preview_url"] = f"https://drive.google.com/file/d/{file_id}/view"  # private: owner only
     rec = ctx.store.transition(rec.video_id, State.QUALITY_CHECK, State.AWAITING_APPROVAL, rec.version, **fields)
     out({"ok": True, "video_id": rec.video_id, "state": rec.state.value, "proposed_publish_at": slot,

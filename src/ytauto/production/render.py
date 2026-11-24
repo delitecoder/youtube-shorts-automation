@@ -265,7 +265,8 @@ def draw_captions(d, cap: dict | None, t: float, accent) -> None:
 # ------------------------------------------------------------------ main entry
 def render(storyboard: dict, scene_audio: list[Path], workdir: Path, out_mp4: Path,
            preset: str = "veryfast", music: bool = True, sfx: bool = True,
-           sfx_dir: Path | None = None, music_dir: Path | None = None) -> dict:
+           sfx_dir: Path | None = None, music_dir: Path | None = None, engine: str = "pillow") -> dict:
+    """engine: pillow | hyperframes | auto (hyperframes, falling back to pillow)."""
     from .storyboard import normalize
     workdir.mkdir(parents=True, exist_ok=True)
     storyboard = normalize(storyboard)
@@ -285,6 +286,23 @@ def render(storyboard: dict, scene_audio: list[Path], workdir: Path, out_mp4: Pa
     (workdir / "captions.srt").write_text(captions.to_srt(caps))
     duration = timings[-1]["end"]
     n_frames = int(math.ceil(duration * FPS))
+    if engine in ("auto", "hyperframes"):
+        from . import hyperframes as hfr
+        try:
+            proj = hfr.build(storyboard, timings, caps, workdir, storyboard.get("series_label", "TECH IN 60s"))
+            hfr.render(proj, norm_wav, out_mp4, n_frames / FPS)
+            report = qc(out_mp4, timings)
+            report |= {"attributions": attributions, "engine": "hyperframes"}
+            if report["ok"]:
+                (workdir / "timings.json").write_text(json.dumps({"timings": timings, "qc": report}, indent=1))
+                return report
+            fallback_reason = f"hyperframes QC failed: {report['checks']}"
+        except Exception as ex:  # noqa: BLE001 - fall back to the Pillow renderer
+            fallback_reason = f"hyperframes: {str(ex)[:300]}"
+        if engine == "hyperframes":
+            raise RuntimeError(fallback_reason)
+    else:
+        fallback_reason = ""
 
     bg = Background()
     cmd = ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
@@ -335,6 +353,9 @@ def render(storyboard: dict, scene_audio: list[Path], workdir: Path, out_mp4: Pa
         raise RuntimeError(f"ffmpeg exited early: {proc.stderr.read().decode()[:500]}")
     report = qc(out_mp4, timings)
     report["attributions"] = attributions
+    report["engine"] = "pillow"
+    if fallback_reason:
+        report["fallback_reason"] = fallback_reason
     (workdir / "timings.json").write_text(json.dumps({"timings": timings, "qc": report}, indent=1))
     return report
 

@@ -13,5 +13,5 @@ Each step is reversible. `bash scripts/deploy_publisher.sh off` is the emergency
 | 7. `deploy_publisher.sh private` | owner | Approved videos upload as **private**. Check one on YouTube Studio. |
 | 8. `deploy_publisher.sh live` | owner | Approved videos are scheduled public at 19:30 IST. |
 
-YouTube note: until the free API compliance audit is approved, YouTube keeps API uploads private
-even in `live` mode (https://support.google.com/youtube/contact/yt_api_form).
+YouTube note: since 2 Nov 2026 API uploads from unaudited projects are no longer locked to private,
+so no audit form is needed (it only matters if you ever need more than the default quota).

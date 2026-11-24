@@ -5,7 +5,9 @@ The same rules are implemented in apps_script/approval_watcher.gs. The publisher
 before every upload, so a bug or compromise in one component cannot approve on its own.
 
 Accepted reply = after removing quoted history and an optional signature, exactly one
-non-empty line that is exactly `YES VIDEO-YYYYMMDD-NNN` or `NO VIDEO-YYYYMMDD-NNN`.
+non-empty line that is exactly `APPROVED VIDEO-YYYYMMDD-NNN` / `REJECTED VIDEO-…` (YES/NO and
+APPROVE/REJECT are accepted synonyms). It must arrive before the deadline: the earlier of
+request + 24 h and the publish slot minus 15 minutes.
 Anything else (extra text, lowercase, two commands, a command only inside quoted text) is
 rejected. Missing replies, timeouts and errors never count as approval.
 """
@@ -18,7 +20,9 @@ from email.utils import parseaddr
 
 from ..state import State, VideoRecord, parse_iso
 
-COMMAND_RE = re.compile(r"^(YES|NO) (VIDEO-\d{8}-\d{3})$")
+COMMAND_RE = re.compile(r"^(YES|NO|APPROVED|REJECTED|APPROVE|REJECT) (VIDEO-\d{8}-\d{3})$")
+CMD_MAP = {"YES": "YES", "APPROVED": "YES", "APPROVE": "YES", "NO": "NO", "REJECTED": "NO", "REJECT": "NO"}
+SLOT_MARGIN = timedelta(minutes=15)   # approval must arrive this long before the publish slot
 _ON_WROTE_START = re.compile(r"^On .*")
 _QUOTE_MARKERS = (
     re.compile(r"^-{2,}\s*Original Message\s*-{2,}", re.I),
@@ -64,8 +68,8 @@ def parse_command(body: str) -> tuple[str, str]:
         raise ApprovalRejected("ambiguous reply: more than one line of new text")
     m = COMMAND_RE.fullmatch(lines[0])
     if not m:
-        raise ApprovalRejected("malformed command; expected exactly 'YES VIDEO-ID' or 'NO VIDEO-ID'")
-    return m.group(1), m.group(2)
+        raise ApprovalRejected("malformed command; expected exactly 'APPROVED VIDEO-ID' or 'REJECTED VIDEO-ID'")
+    return CMD_MAP[m.group(1)], m.group(2)
 
 
 @dataclass
@@ -118,7 +122,7 @@ def validate_reply(rec: VideoRecord, ev: ReplyEvidence, *, approver: str, approv
         raise ApprovalRejected("reply timestamp has no timezone")
     if ev.sent_at <= requested:
         raise ApprovalRejected("reply predates the approval request")
-    deadline = requested + timedelta(hours=ttl_hours)
+    deadline = approval_deadline(rec, ttl_hours)
     if ev.sent_at > deadline:
         raise ApprovalRejected("reply arrived after the approval expired")
     if ev.sent_at > now + CLOCK_SKEW:
@@ -129,6 +133,13 @@ def validate_reply(rec: VideoRecord, ev: ReplyEvidence, *, approver: str, approv
     return decision
 
 
+def approval_deadline(rec: VideoRecord, ttl_hours: int) -> datetime:
+    """min(request + TTL, publish slot - 15 min): no reply before the evening slot = skipped."""
+    deadline = parse_iso(rec.approval_requested_at) + timedelta(hours=ttl_hours)
+    slot = parse_iso(rec.proposed_publish_at) if rec.proposed_publish_at else None
+    return min(deadline, slot - SLOT_MARGIN) if slot else deadline
+
+
 def is_expired(rec: VideoRecord, now: datetime, ttl_hours: int) -> bool:
     requested = parse_iso(rec.approval_requested_at)
-    return requested is not None and now > requested + timedelta(hours=ttl_hours)
+    return requested is not None and now > approval_deadline(rec, ttl_hours)

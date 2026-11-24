@@ -1,0 +1,10 @@
+{
+  "name": "ytauto-hyperframes-renderer",
+  "private": true,
+  "description": "Pinned HyperFrames (Apache-2.0) + GSAP for the Shorts renderer",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "gsap": "3.13.0",
+    "hyperframes": "0.9.88"
+  }
+}

@@ -13,6 +13,9 @@ VID = "VIDEO-20261124-001"
 CASES = [
     ("yes", f"YES {VID}", {}, "YES"),
     ("no", f"NO {VID}", {}, "NO"),
+    ("approved", f"APPROVED {VID}", {}, "YES"),
+    ("rejected", f"REJECTED {VID}", {}, "NO"),
+    ("approved-lower", f"approved {VID}", {}, "malformed"),
     ("quoted-sig", f"YES {VID}\n--\nMe\nOn Tue, Bot wrote:\n> x", {}, "YES"),
     ("lower", f"yes {VID}", {}, "malformed"),
     ("extra", f"YES {VID} ok", {}, "malformed"),
@@ -31,7 +34,7 @@ CASES = [
 HARNESS = r"""
 const vm = require('vm'); const fs = require('fs');
 const ctx = { PropertiesService: { getScriptProperties: () => ({ getProperty: k => ({APPROVER_IS_OWNER: 'true'})[k] || null }) },
-              console };
+              Utilities: { formatDate: (d) => String(d) }, console };
 vm.createContext(ctx); vm.runInContext(fs.readFileSync(process.argv[2], 'utf8'), ctx);
 const cases = JSON.parse(process.argv[3]); const out = {};
 const rec = { state: 'AWAITING_APPROVAL', video_id: '%VID%', approval_thread_id: 't1',

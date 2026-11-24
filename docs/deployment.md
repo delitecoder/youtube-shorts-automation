@@ -19,8 +19,8 @@ explicit go-ahead. Never paste secrets into chat; every secret goes into a prote
    warning when authorising your own account; that is expected for personal use.
 3. Credentials → OAuth client ID → *Desktop app* → download `client_secret.json` (keep it local).
 4. Credentials → API key → restrict it to **Cloud Text-to-Speech API** only.
-5. **YouTube API audit:** uploads from unverified API projects are locked to *private*. Submit the
-   free audit form (https://support.google.com/youtube/contact/yt_api_form) early.
+5. **YouTube API audit:** not needed. Since 2 Nov 2026 uploads from unaudited projects are no longer
+   locked to private (YouTube Data API revision history). An audit only matters for extra quota.
 
 ## 2. Tokens (on your computer, once)
 ```bash

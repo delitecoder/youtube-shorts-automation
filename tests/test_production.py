@@ -123,3 +123,23 @@ def test_simple_string_visuals_are_normalised():
     t = normalize_visual({"type": "timeline", "events": ["2026-07-28: spec live", "no colon here"]})
     assert t["events"][0] == {"label": "2026-07-28", "text": "spec live"}
     assert t["events"][1]["label"] and isinstance(t["events"][1]["text"], str)
+
+
+def test_hyperframes_composition_is_complete_and_captions_do_not_overlap(tmp_path):
+    import re as _re
+    from ytauto.production import hyperframes as hfr, captions as cap
+    if not (hfr.RENDERER_DIR / "node_modules" / "gsap").exists():
+        pytest.skip("npm ci --prefix renderer/hyperframes not run")
+    sb = copy.deepcopy(SB)
+    t, timings = 0.0, []
+    for s in sb["scenes"]:
+        timings.append({"start": t, "speech_start": t + 0.1, "speech_end": t + 4.0, "end": t + 4.5})
+        t += 4.5
+    caps = cap.build(sb["scenes"], timings)
+    proj = hfr.build(sb, timings, caps, tmp_path)
+    doc = (proj / "index.html").read_text()
+    assert all(f'id="s{i}"' in doc for i in range(len(sb["scenes"])))
+    assert "&nbsp;</span>" not in doc and "window.__timelines.main=tl" in doc
+    spans = [(float(a), float(b)) for a, b in _re.findall(r'class="cap clip" data-start="([\d.]+)" data-duration="([\d.]+)"', doc)]
+    for (s1, d1), (s2, _) in zip(spans, spans[1:]):
+        assert s1 + d1 <= s2 + 1e-6

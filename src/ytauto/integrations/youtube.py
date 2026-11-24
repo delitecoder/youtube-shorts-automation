@@ -1,8 +1,9 @@
 """YouTube Data API v3 wrapper: resumable upload with safe retries, status checks.
 
 Notes verified against official docs (see docs/costs.md for links):
-* Uploads from unverified API projects created after 2020-07-28 are locked to private until the
-  project passes the (free) YouTube API compliance audit.
+* Since 2026-11-02 (YouTube Data API revision history) uploads from unverified API projects are no
+  longer forced to private, so no compliance audit is needed to publish. An audit is only needed
+  for extra quota.
 * publishAt is only valid with privacyStatus=private and must be in the future.
 * There is no "Shorts" flag in the API: a video is classified as a Short by YouTube from its
   duration (<= 3 min) and square/vertical aspect ratio. Custom thumbnails for Shorts are not
