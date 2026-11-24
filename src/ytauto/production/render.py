@@ -80,14 +80,22 @@ class Background:
 
 
 # ------------------------------------------------------------------ visuals
-def draw_image(layer: Image.Image, img: Image.Image, p: float, caption: str, accent) -> None:
-    """Cover-fit into the visual area with a slow Ken Burns zoom and rounded corners."""
+def draw_image(layer: Image.Image, img: Image.Image, p: float, caption: str, accent,
+               focus: list | None = None) -> None:
+    """Cover-fit into the visual area with a slow Ken Burns zoom and rounded corners. With a
+    detector `focus` box (normalised x0,y0,x1,y1) the frame drifts toward that object."""
     bx0, by0, bx1, by1 = MARGIN_L - 30, 440, W - MARGIN_R + 30, 1150
     bw, bh = bx1 - bx0, by1 - by0
     zoom = 1.0 + 0.08 * ease(p)
     scale = max(bw / img.width, bh / img.height) * zoom
     rs = img.resize((int(img.width * scale), int(img.height * scale)), Image.LANCZOS)
     ox, oy = (rs.width - bw) // 2, (rs.height - bh) // 2
+    if focus:
+        fx, fy = (focus[0] + focus[2]) / 2 * rs.width, (focus[1] + focus[3]) / 2 * rs.height
+        k = ease(p)
+        ox = int(ox + k * ((fx - bw / 2) - ox))
+        oy = int(oy + k * ((fy - bh / 2) - oy))
+        ox, oy = max(0, min(ox, rs.width - bw)), max(0, min(oy, rs.height - bh))
     crop = rs.crop((ox, oy, ox + bw, oy + bh))
     mask = Image.new("L", (bw, bh), 0)
     ImageDraw.Draw(mask).rounded_rectangle([0, 0, bw, bh], 32, fill=int(255 * ease(p * 4)))
@@ -128,7 +136,7 @@ def draw_visual(d: ImageDraw.ImageDraw, v: dict, p: float, accent, t: float,
                 layer: Image.Image | None = None, images: dict | None = None) -> None:
     kind = v["type"]
     if kind == "image":
-        draw_image(layer, images[v["asset"]], p, v.get("caption", ""), accent)
+        draw_image(layer, images[v["asset"]], p, v.get("caption", ""), accent, v.get("focus"))
         return
     if kind == "subscribe":
         draw_subscribe(d, p, t)

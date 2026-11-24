@@ -14,8 +14,22 @@ from ..state import iso, utcnow
 from ..store import JsonFileStore
 
 
+def load_drive_keys() -> dict:
+    """Pull keys/settings from Drive 00_Config/keys.json into the environment (names reported only)."""
+    import os
+    if not os.environ.get("YTA_PIPELINE_OAUTH") or os.environ.get("YTA_SKIP_DRIVE_KEYS") == "true":
+        return {"loaded": [], "note": "skipped (no pipeline credentials)"}
+    try:
+        from ..integrations.google_auth import build_service
+        from ..integrations.keys import load_into_env
+        return load_into_env(build_service("drive", "v3", "pipeline"))
+    except Exception as e:  # noqa: BLE001 - report, never print values
+        return {"loaded": [], "error": f"{type(e).__name__}: {str(e)[:160]}"}
+
+
 class Ctx:
     def __init__(self, settings: Settings | None = None, profile: str = "pipeline"):
+        self.keys_report = {} if settings else load_drive_keys()
         self.s = settings or Settings.from_env()
         self.profile = profile
         RUNTIME_DIR.mkdir(exist_ok=True)

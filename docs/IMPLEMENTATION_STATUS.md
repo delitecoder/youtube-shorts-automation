@@ -34,8 +34,17 @@ _Last updated: 2026-11-24_
   the description; covered by the single video approval (no per-image approval).
 - After a successful upload the video file moves to Drive `Archive` (Apps Script + reconcile).
 
+## Added (round 4)
+- Grounding DINO (Apache-2.0) open-vocabulary detector: coordinates for framing (Ken Burns drifts to
+  the main object; tested live) + logo/watermark only at score >= 0.40 (low scores gave false hits).
+- Keys/settings from Drive `00_Config/keys.json` (whitelist, must be private & owned; never flags or
+  publisher secrets). Only YTA_PIPELINE_OAUTH stays in the Claude environment. Apps Script reads
+  non-secret settings from the same file (KEYS_FILE_ID).
+- docs/SETUP.md step-by-step; daily scheduled task (10:07 IST) clones the public repo and stops
+  early while setup is incomplete.
+
 ## Test results
-`python -m pytest -q` → 123 passed (real renders, real Kokoro synthesis, Apps Script parity).
+`python -m pytest -q` → 128 passed (real renders, real Kokoro synthesis, Apps Script parity).
 Mutation check: removing the SENT-label check, request-time check, or checksum check makes tests fail.
 
 ## Not verified (needs owner's accounts)

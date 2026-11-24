@@ -238,6 +238,68 @@ class SmolVLM:
         return res
 
 
+class GroundingDino:
+    """Open-vocabulary detector (IDEA-Research grounding-dino-tiny, Apache-2.0): boxes for any
+    named object. Used for framing (where to zoom) and as a high-confidence logo/watermark check.
+    Low scores give false positives (measured: fibre connectors labelled "watermark" at 0.25), so
+    only scores >= FLAG_MIN count as flags."""
+    FLAG_MIN = 0.40
+    _cache: dict = {}
+
+    def __init__(self, model_id: str | None = None):
+        try:
+            import torch  # noqa: F401
+            import transformers  # noqa: F401
+        except ImportError as e:
+            raise Unavailable("transformers/torch not installed") from e
+        self.model_id = model_id or os.environ.get("DETECTOR_MODEL", "IDEA-Research/grounding-dino-tiny")
+
+    def _load(self):
+        if self.model_id not in GroundingDino._cache:
+            from transformers import AutoModelForZeroShotObjectDetection, AutoProcessor
+            os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
+            GroundingDino._cache[self.model_id] = (
+                AutoProcessor.from_pretrained(self.model_id),
+                AutoModelForZeroShotObjectDetection.from_pretrained(self.model_id).eval())
+        return GroundingDino._cache[self.model_id]
+
+    def detect(self, image: Path, query: str) -> dict:
+        """Returns {"focus": [x0,y0,x1,y1] normalised 0–1 or None, "logo": bool, "watermark": bool,
+        "boxes": [[label, score, x0, y0, x1, y1], …] (normalised, top 5)}."""
+        import torch
+        from PIL import Image
+        proc, model = self._load()
+        img = Image.open(image).convert("RGB")
+        W, H = img.size
+        subjects = [w for w in re.findall(r"[a-z]+", query.lower()) if w not in _STOP and len(w) > 2][:4]
+        text = ". ".join(subjects + ["logo", "watermark"]) + "."
+        inp = proc(images=img, text=text, return_tensors="pt")
+        with torch.no_grad():
+            out = model(**inp)
+        r = proc.post_process_grounded_object_detection(out, inp.input_ids, threshold=0.25, text_threshold=0.2,
+                                                        target_sizes=[(H, W)])[0]
+        labels = r.get("text_labels", r["labels"])
+        boxes = sorted(([str(l), round(float(sc), 2), *[round(v, 3) for v in
+                         (b[0] / W, b[1] / H, b[2] / W, b[3] / H)]]
+                        for b, sc, l in zip(r["boxes"].tolist(), r["scores"].tolist(), labels)),
+                       key=lambda x: -x[1])
+        area = lambda b: (b[4] - b[2]) * (b[5] - b[3])  # noqa: E731
+        # a box covering most of the frame says nothing about where to look
+        subj = [b for b in boxes if any(w in b[0] for w in subjects) and 0.02 < area(b) < 0.75]
+        flag = lambda word: any(word in b[0] and b[1] >= self.FLAG_MIN for b in boxes)  # noqa: E731
+        return {"focus": subj[0][2:] if subj else None, "logo": flag("logo"),
+                "watermark": flag("watermark"), "boxes": boxes[:5]}
+
+
+def make_detector():
+    if "detector" not in os.environ.get("VISION_PROVIDERS", "omnivision,smolvlm,google,clip,detector,metadata"):
+        return None
+    try:
+        return GroundingDino()
+    except Unavailable:
+        return None
+
+
 class MetadataOnly:
     name = "metadata"
 
@@ -266,7 +328,7 @@ class ChainDescriber:
 
 
 def make_describer(store=None):
-    order = os.environ.get("VISION_PROVIDERS", "omnivision,smolvlm,google,clip,metadata").split(",")
+    order = os.environ.get("VISION_PROVIDERS", "omnivision,smolvlm,google,clip,detector,metadata").split(",")
     built = []
     for name in (o.strip() for o in order):
         try:
@@ -305,6 +367,8 @@ def summarize(result: dict, max_keywords: int = 6) -> dict:
     kw = sorted(counts, key=lambda w: (-counts[w], first[w]))   # most mentioned, then earliest
     flags = "".join(k[0] for k in ("watermark", "logo", "face") if result.get(k))  # e.g. "lf"
     out = {"kw": kw[:max_keywords], "flags": flags or "-", "by": result.get("provider", "?")}
+    if result.get("focus"):
+        out["focus"] = [round(v, 2) for v in result["focus"]]
     if result.get("relevance") is not None:
         out["rel"] = round(float(result["relevance"]), 2)
     if result.get("visual_unverified"):

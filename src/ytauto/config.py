@@ -26,12 +26,13 @@ ALLOWED_CATEGORIES = (
 )
 
 FOLDER_KEYS = (
-    "root", "inbox", "inbox_videos", "inbox_documents", "inbox_references",
+    "root", "config", "inbox", "inbox_videos", "inbox_documents", "inbox_references",
     "references_images", "references_sfx", "references_music",
     "generated", "awaiting_approval", "published", "rejected", "archive",
 )
 FOLDER_NAMES = {
     "root": "YouTubeAutomation",
+    "config": "00_Config",           # keys.json lives here (private, never shared)
     "inbox": "01_Inbox",
     "inbox_videos": "Videos",
     "inbox_documents": "Documents",

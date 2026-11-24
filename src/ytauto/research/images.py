@@ -190,7 +190,7 @@ def download(c: Candidate, dest: Path, session) -> str:
 
 
 def choose(query: str, cands: list[Candidate], workdir: Path, name: str, session, describer,
-           max_checks: int = 4) -> tuple[Candidate | None, list[str]]:
+           max_checks: int = 4, detector=None) -> tuple[Candidate | None, list[str]]:
     """Rank by metadata, then let the local vision model verify the top few."""
     notes: list[str] = []
     for c in cands:
@@ -207,6 +207,14 @@ def choose(query: str, cands: list[Candidate], workdir: Path, name: str, session
             notes.append(f"download failed: {c.page_url}: {str(e)[:80]}")
             continue
         v = describer.describe(p, query)
+        if detector is not None:
+            try:
+                det = detector.detect(p, query)
+                v["focus"], v["boxes"] = det["focus"], det["boxes"]
+                v["logo"] = bool(v.get("logo")) or det["logo"]
+                v["watermark"] = bool(v.get("watermark")) or det["watermark"]
+            except Exception as e:  # noqa: BLE001 - detector is an optional extra
+                notes.append(f"detector failed: {str(e)[:80]}")
         c.visual_unverified = bool(v.get("visual_unverified"))
         c.vision = v
         if v.get("watermark") or v.get("logo") or v.get("face"):

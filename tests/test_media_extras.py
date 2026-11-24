@@ -234,3 +234,50 @@ def test_outro_appended_and_not_in_script():
     sb["scenes"][2]["narration"] += " Subscribe now!"
     _, warns = validate_storyboard(sb)
     assert any("added automatically" in w for w in warns)
+
+
+# ------------------------------------------------------------------ Drive keys.json
+from ytauto.integrations import keys as keysmod  # noqa: E402
+
+
+def test_keys_whitelist_and_never_flags():
+    vals, ignored = keysmod.parse(json.dumps({"GOOGLE_TTS_API_KEY": "k", "UPLOAD_ENABLED": "true",
+                                              "WEBHOOK_SECRET": "s", "DRIVE_FOLDER_IDS": {"root": "x"},
+                                              "APPROVER_EMAIL": "", "_readme": "x"}))
+    assert vals == {"GOOGLE_TTS_API_KEY": "k", "DRIVE_FOLDER_IDS": '{"root": "x"}'}
+    assert set(ignored) == {"UPLOAD_ENABLED", "WEBHOOK_SECRET"}
+
+
+@pytest.mark.parametrize("meta", [{"ownedByMe": False}, {"ownedByMe": True, "permissions": [{"type": "anyone"}]},
+                                  {"ownedByMe": True, "permissions": [{"type": "domain"}]}])
+def test_keys_file_must_be_private(meta):
+    with pytest.raises(keysmod.KeysFileRejected):
+        keysmod.check_private(meta)
+
+
+class FakeFiles:
+    def __init__(self, meta, raw):
+        self.meta, self.raw = meta, raw
+
+    def get(self, **kw):
+        return type("R", (), {"execute": lambda s: self.meta})()
+
+    def get_media(self, **kw):
+        return type("R", (), {"execute": lambda s: self.raw})()
+
+
+class FakeDriveSvc:
+    def __init__(self, meta, raw):
+        self._f = FakeFiles(meta, raw)
+
+    def files(self):
+        return self._f
+
+
+def test_keys_loaded_into_env_without_overriding():
+    env = {"YTA_KEYS_FILE_ID": "id1", "TTS_VOICE": "mine"}
+    svc = FakeDriveSvc({"ownedByMe": True, "permissions": [{"type": "user"}]},
+                       json.dumps({"GOOGLE_TTS_API_KEY": "secret-value", "TTS_VOICE": "theirs"}).encode())
+    rep = keysmod.load_into_env(svc, env)
+    assert env["GOOGLE_TTS_API_KEY"] == "secret-value" and env["TTS_VOICE"] == "mine"
+    assert rep["loaded"] == ["GOOGLE_TTS_API_KEY"] and "secret-value" not in json.dumps(rep)

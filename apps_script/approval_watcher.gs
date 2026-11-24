@@ -16,6 +16,8 @@
  *   ARCHIVE_FOLDER_ID (Drive "Archive" folder: the video file is moved there after a successful upload)
  * Advanced service required: Gmail API (identifier "Gmail") – used only to read labelIds and the
  * Authentication-Results header of reply messages.
+ *   KEYS_FILE_ID (optional): Drive id of YouTubeAutomation/00_Config/keys.json; then SPREADSHEET_ID,
+ *   APPROVER_EMAIL, PUBLISHER_URL, ARCHIVE_FOLDER_ID and DRY_RUN can live in that file instead.
  * Setup: run setup() once, authorise, done.
  */
 
@@ -24,7 +26,31 @@ var CMD_RE = /^(YES|NO) (VIDEO-\d{8}-\d{3})$/;
 var QUOTE_MARKERS = [/^-{2,}\s*Original Message\s*-{2,}/i, /^_{5,}$/, /^From: .+/, /^Sent from my .+/i, /^Get Outlook for .+/i];
 
 function props_() { return PropertiesService.getScriptProperties(); }
-function prop_(k) { var v = props_().getProperty(k); if (!v) throw new Error('Missing script property ' + k); return v; }
+
+// Non-secret settings may come from Drive 00_Config/keys.json (set Script Property KEYS_FILE_ID).
+// WEBHOOK_SECRET is never read from Drive: it stays in Script Properties only.
+var FROM_KEYS_FILE = ['SPREADSHEET_ID', 'APPROVER_EMAIL', 'PUBLISHER_URL', 'ARCHIVE_FOLDER_ID', 'DRY_RUN'];
+var keysCache_ = null;
+function keysFile_() {
+  if (keysCache_ !== null) return keysCache_;
+  keysCache_ = {};
+  var id = props_().getProperty('KEYS_FILE_ID');
+  if (!id) return keysCache_;
+  var f = DriveApp.getFileById(id);
+  var access = f.getSharingAccess();
+  if (access === DriveApp.Access.ANYONE || access === DriveApp.Access.ANYONE_WITH_LINK ||
+      access === DriveApp.Access.DOMAIN || access === DriveApp.Access.DOMAIN_WITH_LINK) {
+    throw new Error('keys.json is shared too widely; set sharing to Restricted');
+  }
+  keysCache_ = JSON.parse(f.getBlob().getDataAsString());
+  return keysCache_;
+}
+function prop_(k) {
+  var v = props_().getProperty(k);
+  if (!v && FROM_KEYS_FILE.indexOf(k) >= 0) v = keysFile_()[k];
+  if (!v) throw new Error('Missing setting ' + k + ' (Script Properties or keys.json)');
+  return String(v);
+}
 function nowIso_() { return new Date().toISOString().replace(/\.\d{3}Z$/, '+00:00'); }
 
 function setup() {
@@ -265,7 +291,8 @@ function expire_(ss) {
 function hex_(bytes) { return bytes.map(function (b) { return ('0' + (b & 0xff).toString(16)).slice(-2); }).join(''); }
 
 function callPublisher_(ss) {
-  if (props_().getProperty('DRY_RUN') !== 'false') return;  // never call the publisher in dry run
+  var dry = props_().getProperty('DRY_RUN') || String(keysFile_().DRY_RUN || 'true');
+  if (dry !== 'false') return;  // never call the publisher in dry run
   var url = prop_('PUBLISHER_URL'), secret = prop_('WEBHOOK_SECRET');
   table_(ss, 'VideoQueue').rows.forEach(function (r) {
     if (r.state !== 'APPROVED' || r.webhook_status === 'done') return;

@@ -48,6 +48,7 @@ def cmd_doctor(ctx: Ctx, a) -> int:
         "spreadsheet_id_set": bool(ctx.s.spreadsheet_id),
         "drive_folders_set": sorted(ctx.s.folders),
         "pipeline_oauth_present": bool(os.environ.get("YTA_PIPELINE_OAUTH")),
+        "drive_keys": ctx.keys_report,
         "ffmpeg": bool(shutil.which("ffmpeg")),
         "tts_provider": ctx.s.tts_provider,
         "tts_budget": ctx.s.tts_monthly_char_budget,
@@ -63,7 +64,9 @@ def cmd_doctor(ctx: Ctx, a) -> int:
             blockers.append("DRIVE_FOLDER_IDS incomplete")
     if ctx.s.upload_enabled:
         blockers.append("UPLOAD_ENABLED must be false in the pipeline environment (publisher only)")
-    out({"ok": not blockers, "blockers": blockers, "checks": checks})
+    setup_complete = all([checks["pipeline_oauth_present"], checks["approver_email_set"],
+                          checks["spreadsheet_id_set"], len(ctx.s.folders) >= 10])
+    out({"ok": not blockers, "setup_complete": setup_complete, "blockers": blockers, "checks": checks})
     return 0 if not blockers else 2
 
 
@@ -250,12 +253,12 @@ def cmd_resolve_images(ctx: Ctx, a) -> int:
     Unresolvable scenes fall back to a title card, so rendering never blocks on images."""
     import requests
 
-    from ..production.vision import make_describer, summarize
+    from ..production.vision import make_describer, make_detector, summarize
     from ..research import images as im
     sb = load_json(a.storyboard)
     wd = WORK / sb["video_id"]
     (wd / "assets").mkdir(parents=True, exist_ok=True)
-    describer, session = make_describer(ctx.store), requests.Session()
+    describer, detector, session = make_describer(ctx.store), make_detector(), requests.Session()
     credits_path = wd / "image_credits.json"
     credits = json.loads(credits_path.read_text()) if credits_path.exists() else []
     report = []
@@ -272,10 +275,12 @@ def cmd_resolve_images(ctx: Ctx, a) -> int:
                 report.append({"scene": i, "warning": f"{search.__name__}: {str(e)[:120]}"})
             if len(cands) >= 4:
                 break
-        best, notes = im.choose(q, cands, wd, f"scene{i}", session, describer) if cands else (None, [])
+        best, notes = im.choose(q, cands, wd, f"scene{i}", session, describer, detector=detector) if cands else (None, [])
         if best:
             v["asset"] = best.file
             v.setdefault("caption", "")
+            if (best.vision or {}).get("focus"):
+                v["focus"] = best.vision["focus"]      # renderer zooms toward this box
             credits.append({"type": "image", "file": best.file, "credit": best.credit,
                             "creator": best.creator, "license": best.license, "page_url": best.page_url,
                             "needs_attribution": best.needs_attribution or best.requires_permission,

@@ -118,6 +118,7 @@ class Drive:
 
         ids: dict[str, str] = {}
         ids["root"] = find_or_create(FOLDER_NAMES["root"], None)
+        ids["config"] = find_or_create(FOLDER_NAMES["config"], ids["root"])
         ids["inbox"] = find_or_create(FOLDER_NAMES["inbox"], ids["root"])
         for k in ("inbox_videos", "inbox_documents", "inbox_references"):
             ids[k] = find_or_create(FOLDER_NAMES[k], ids["inbox"])
@@ -126,4 +127,18 @@ class Drive:
         for k in ("generated", "awaiting_approval", "published", "rejected", "archive"):
             ids[k] = find_or_create(FOLDER_NAMES[k], ids["root"])
         assert set(ids) == set(FOLDER_KEYS)
+        self._ensure_keys_template(ids["config"])
         return ids
+
+    def _ensure_keys_template(self, config_folder: str) -> None:
+        """Create an EMPTY keys.json template (no values) if none exists."""
+        import json
+        from googleapiclient.http import MediaInMemoryUpload
+
+        from .keys import TEMPLATE
+        q = f"name = 'keys.json' and trashed = false and '{config_folder}' in parents"
+        if self.svc.files().list(q=q, fields="files(id)").execute().get("files"):
+            return
+        media = MediaInMemoryUpload(json.dumps(TEMPLATE, indent=2).encode(), mimetype="application/json")
+        self.svc.files().create(body={"name": "keys.json", "parents": [config_folder]},
+                                media_body=media, fields="id").execute()
