@@ -47,8 +47,12 @@ _Last updated: 2026-11-24_
 `python -m pytest -q` → 128 passed (real renders, real Kokoro synthesis, Apps Script parity).
 Mutation check: removing the SENT-label check, request-time check, or checksum check makes tests fail.
 
+## Verified with the owner's accounts (2026-11-24)
+- bootstrap done by owner; cloud session: doctor ok, setup_complete=true, keys.json loaded from Drive
+  (8 keys), Drive folders readable, control spreadsheet with all 7 tabs, YouTube channel found,
+  Analytics API returns data. All flags still safe (DRY_RUN=true, uploads/publication/promotion off).
+
 ## Not verified (needs owner's accounts)
-- No real Google API call has been made (no credentials in this environment).
 - Apps Script not yet deployed; Cloud Run not deployed (needs billing authorisation).
 - Google TTS voice name `en-US-Chirp3-HD-Charon` must be confirmed with the first real synthesis.
 - Scheduled task not created yet (waiting for repo + credentials).
@@ -64,4 +68,5 @@ Mutation check: removing the SENT-label check, request-time check, or checksum c
 3. Decide on billing (TTS + Cloud Run) or the zero-billing fallback (docs/costs.md).
 
 ## Next action
-Phase 1 dry run in the cloud environment → then Phase 2 (real approval emails, uploads disabled).
+First full dry-run production in the cloud → then Phase 2 when the owner sets keys.json DRY_RUN=false
+(real approval emails, uploads still disabled). Apps Script trigger not verifiable from here.
