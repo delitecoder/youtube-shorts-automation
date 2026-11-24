@@ -394,7 +394,12 @@ def cmd_submit(ctx: Ctx, a) -> int:
     taken = {r.proposed_publish_at for r in ctx.store.all()
              if r.video_id != rec.video_id and r.proposed_publish_at and r.state in
              (State.AWAITING_APPROVAL, State.APPROVED, State.UPLOADING, State.SCHEDULED)}
-    slot = rfc3339(free_slot(now, taken, ctx.s.publish_time, ctx.s.timezone, ctx.s.min_lead_minutes))
+    try:
+        slots = json.loads(ctx.store.get_config("publish_slots", "") or "{}").get("slots")
+    except ValueError:
+        slots = None
+    slot = rfc3339(free_slot(now, taken, ctx.s.publish_time, ctx.s.timezone, ctx.s.min_lead_minutes,
+                             weekday_slots=slots))
     qr = json.loads(rec.quality_report or "{}") | {"review": review}
     qr["youtube"] = {"category_id": str(meta.get("category_id", "28")), "made_for_kids": False,
                      "language": "en", "embeddable": True, "public_stats": True}
@@ -520,6 +525,42 @@ def cmd_restore(ctx: Ctx, a) -> int:
     return 0
 
 
+def cmd_audit(ctx: Ctx, a) -> int:
+    """Daily views audit: analyse the channel, store guidance for the storywriter, email the owner."""
+    from ..analytics import audit as au
+    ours = {r.youtube_video_id for r in ctx.store.all() if r.youtube_video_id}
+    rep = au.collect(ctx.yt_analytics, ctx.youtube, _today_local(ctx), ours)
+    res = au.analyse(rep)
+    ctx.store.set_config("last_audit", json.dumps(res)[:45000])
+    today = _today_local(ctx).isoformat()
+    if a.email and ctx.store.get_config("audit_emailed", "") != today:
+        log_error(ctx.store, "audit", au.email_text(res), "", "AUDIT")
+        ctx.store.set_config("audit_emailed", today)
+    # compact output for the orchestrator/storywriter (keeps tokens low)
+    out({"trend": res["trend"], "channel_median": res.get("channel_median"), "suggestions": res["suggestions"],
+         "guidance": res["guidance"], "top": res.get("top", [])[:3]})
+    return 0
+
+
+def cmd_peak_time(ctx: Ctx, a) -> int:
+    """Learn the best publish slot per weekday from the audience's country and the channel's own
+    early-views history; stored as Configuration publish_slots (refreshed weekly)."""
+    from ..analytics import peak
+    cur = ctx.store.get_config("publish_slots", "")
+    if cur and not a.refresh:
+        try:
+            age = (_today_local(ctx) - datetime.fromisoformat(json.loads(cur)["computed_on"]).date()).days
+            if age < 7:
+                out(json.loads(cur) | {"cached": True})
+                return 0
+        except (ValueError, KeyError):
+            pass
+    res = peak.compute(ctx.youtube, ctx.yt_analytics, ctx.s.timezone, _today_local(ctx))
+    ctx.store.set_config("publish_slots", json.dumps(res))
+    out(res)
+    return 0
+
+
 def cmd_budget(ctx: Ctx, a) -> int:
     """Decide whether/how to make today's video from the session's real usage numbers.
     --record start|end stores utilization so the per-video cost is learned over time."""
@@ -637,6 +678,8 @@ def main(argv=None) -> int:
     p = sub.add_parser("fetch-asset"); p.add_argument("--video-id", required=True); p.add_argument("--file-id", required=True)
     p.add_argument("--name", required=True)
     sub.add_parser("sync-library")
+    p = sub.add_parser("peak-time"); p.add_argument("--refresh", action="store_true")
+    p = sub.add_parser("audit"); p.add_argument("--email", action="store_true")
     p = sub.add_parser("budget")
     p.add_argument("--five-hour", type=float, required=True, help="five_hour utilization 0-1")
     p.add_argument("--five-reset", type=int, required=True, help="five_hour resetsAt (epoch s)")

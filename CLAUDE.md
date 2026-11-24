@@ -65,7 +65,11 @@ Run from the repo root with `PYTHONPATH=src`. Work files go in `runtime/work/<VI
    `bash scripts/fetch_kokoro.sh` (offline fallback voice) and `python -m ytauto sync-library`
    (SFX/music libraries; procedural sound is used when empty).
 2. `python -m ytauto reconcile` (marks scheduled videos public, moves files, optional promotion).
-3. `python -m ytauto analytics --snapshot` → keep the `summary` JSON for the storywriter.
+3. `python -m ytauto audit --email` (daily views audit: trends, top/bottom videos, traffic sources,
+   retention → concrete suggestions; emails the owner once a day) → pass its `guidance` and
+   `suggestions` to the storywriter, who must apply them. `python -m ytauto peak-time` (weekly,
+   cached) keeps the per-weekday peak publish slots current; `submit` uses them automatically.
+   `python -m ytauto analytics --snapshot` keeps per-video history for our own videos.
 4. `python -m ytauto discover` →
    - `resume`: an earlier run stopped part-way (e.g. token limit). Run
      `python -m ytauto restore --video-id <id>` and continue from the reported `next_step`

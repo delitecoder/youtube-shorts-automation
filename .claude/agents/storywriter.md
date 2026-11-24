@@ -43,6 +43,8 @@ Write two files (paths given by the caller):
    - "category_id": "28" (Science & Technology) for tech/AI/programming, "27" (Education) for
      general education.
    - "hook", "pinned_comment" (the audience question, ends with "?").
+If an audit `guidance` block is provided (target_seconds, hook, first_frame, cta, series, seo, topic),
+apply every item explicitly and list how in a "applied_guidance" field of storyboard.json.
 If an analytics summary is provided, apply its lessons (e.g. stronger first line, pacing) but
 never fabricate engagement claims. No "guaranteed", fake urgency or misleading thumbnails/titles.
 For an EXISTING video you only write metadata.json, based on the file name/notes you are given;

@@ -42,3 +42,26 @@ def test_cost_is_learned_and_mid_run_resets_ignored():
     s = b.record_sample(s, {"five_hour": 0.9, "seven_day": 0.3}, {"five_hour": 0.1, "seven_day": 0.31})  # 5h reset mid-run
     cost = b.learned_cost(s)
     assert abs(cost["five_hour"] - 0.07) < 0.011 and abs(cost["seven_day"] - 0.011) < 0.005
+
+
+
+def test_audit_rules_turn_numbers_into_guidance():
+    from ytauto.analytics.audit import analyse, email_text
+    rep = {"date": "2026-11-24", "last7": {"views": 36, "subscribersGained": 0}, "prev7": {"views": 900},
+           "last28": {"views": 1300}, "prev28": {"views": 30},
+           "videos": [{"video": f"v{i}", "views": v, "averageViewPercentage": p, "averageViewDuration": 8,
+                       "likes": 0, "shares": 0, "subscribersGained": 0, "ours": False, "title": f"T{i}"}
+                      for i, (v, p) in enumerate([(1300, 52), (5, 4), (3, 3), (2, 5)])],
+           "traffic": {"SHORTS": 30, "YT_SEARCH": 40, "EXT_URL": 30}}
+    a = analyse(rep)
+    g = a["guidance"]
+    assert g["target_seconds"] == 45 and "first_frame" in g and "seo" in g and "series" in g and "topic" in g
+    assert a["top"][0]["title"] == "T0" and a["trend"]["views_7d_change_pct"] == -96.0
+    txt = email_text(a)
+    assert "Daily views audit" in txt and "What the next videos will change" in txt
+
+
+def test_audit_with_no_data_does_not_invent():
+    from ytauto.analytics.audit import analyse
+    a = analyse({"date": "2026-11-24", "videos": []})
+    assert a["top"] == [] and "No video data" in a["suggestions"][0]

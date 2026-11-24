@@ -1,7 +1,7 @@
 """Storyboard/metadata validation, captions, scheduling, research checks and a full render."""
 import copy
 import json
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -156,3 +156,14 @@ def test_free_slot_skips_taken_evenings():
     assert rfc3339(free_slot(now, {"2026-11-24T14:00:00Z"})) == "2026-11-25T14:00:00Z"
     late = datetime(2026, 11, 24, 13, 0, tzinfo=timezone.utc)          # 18:30 IST: too late for today
     assert rfc3339(free_slot(late, {"2026-11-25T14:00:00Z"})) == "2026-11-26T14:00:00Z"
+
+
+def test_peak_slots_need_real_evidence():
+    from ytauto.analytics.peak import choose_slots
+    mon = datetime(2026, 11, 2, tzinfo=timezone.utc)          # a Monday
+    def at(day, hour_ist, views):
+        return (mon + timedelta(days=day, hours=hour_ist - 5.5), views)
+    noise = [at(0, 8, 2)] * 3 + [at(1, 19.5, 1)] * 10           # tiny numbers -> keep default
+    assert choose_slots(noise, "Asia/Kolkata", "Asia/Kolkata")["slots"]["mon"] == "19:30"
+    strong = [at(0, 12, 200)] * 4 + [at(0, 19.5, 60)] * 4 + [at(2, 19.5, 50)] * 6
+    assert choose_slots(strong, "Asia/Kolkata", "Asia/Kolkata")["slots"]["mon"] == "12:00"

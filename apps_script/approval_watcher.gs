@@ -505,8 +505,10 @@ function sendNotifications_(ss) {
   // Separate thread on purpose: notifications are never posted into an approval thread.
   var uploaded = pending.filter(function (r) { return String(r.message).indexOf('Uploaded ✓') === 0; }).length;
   var alerts = pending.filter(function (r) { return r.severity === 'ALERT'; });
+  var audits = pending.filter(function (r) { return r.severity === 'AUDIT'; });
   var subject = alerts.length ? '⚠️ Claude usage limit reached — no new videos until it resets'
-    : uploaded ? '✅ Short uploaded' : '[YouTube automation] ' + pending.length + ' update(s)';
+    : uploaded ? '✅ Short uploaded' : audits.length === pending.length ? '📈 Daily views audit'
+    : '[YouTube automation] ' + pending.length + ' update(s)';
   GmailApp.sendEmail(approver, subject, body);
   pending.forEach(function (r) { t.sheet.getRange(r._row, col).setValue(nowIso_()); });
 }

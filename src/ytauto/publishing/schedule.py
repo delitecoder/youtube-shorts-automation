@@ -18,13 +18,23 @@ def next_slot(now: datetime, publish_time: str = "19:30", tz: str = "Asia/Kolkat
 
 
 def free_slot(now: datetime, taken: set[str], publish_time: str = "19:30", tz: str = "Asia/Kolkata",
-              min_lead_minutes: int = 120, approval_window_hours: int = 1) -> datetime:
-    """Next evening slot that leaves time to approve and is not already used by another video
-    (a video finished late after a usage-limit pause must not collide with tomorrow's video)."""
-    slot = next_slot(now + timedelta(hours=approval_window_hours), publish_time, tz, min_lead_minutes)
-    while rfc3339(slot) in taken:
-        slot += timedelta(days=1)
-    return slot
+              min_lead_minutes: int = 120, approval_window_hours: int = 1,
+              weekday_slots: dict | None = None) -> datetime:
+    """Next peak slot that leaves time to approve and is not already used by another video.
+    weekday_slots ({"mon": "19:30", ...}, publish tz) comes from analytics/peak.py; days without
+    an entry use publish_time."""
+    names = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    zone = ZoneInfo(tz)
+    earliest = (now + timedelta(hours=approval_window_hours, minutes=min_lead_minutes)).astimezone(zone)
+    day = earliest.date()
+    for _ in range(30):
+        hhmm = (weekday_slots or {}).get(names[day.weekday()], publish_time)
+        hh, mm = (int(x) for x in hhmm.split(":"))
+        cand = datetime.combine(day, time(hh, mm), tzinfo=zone)
+        if cand >= earliest and rfc3339(cand) not in taken:
+            return cand.astimezone(timezone.utc)
+        day += timedelta(days=1)
+    raise RuntimeError("no free slot in the next 30 days")
 
 
 def rfc3339(dt: datetime) -> str:
