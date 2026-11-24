@@ -44,7 +44,7 @@ def test_protected_fields_not_updatable(store):
 
 
 def test_terminal_states_have_no_exits():
-    assert {State.PUBLISHED, State.REJECTED, State.EXPIRED, State.FAILED,
+    assert {State.PUBLISHED, State.REJECTED, State.FAILED,
             State.NEEDS_MANUAL_REVIEW} == set(TERMINAL_STATES)
 
 

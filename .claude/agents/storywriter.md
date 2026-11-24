@@ -20,7 +20,8 @@ Daily theme (from the research JSON `theme` / the caller) shapes the story:
   can use today. Real people and facts only; never invent quotes or dialogue.
 Series label: start the title with the theme label (e.g. "Tech Story: …", "Trending Tech: …",
 "Tech News: …", "Tech Motivation: …") so the daily series is recognisable, keeping the main
-keyword early and the title ≤ 70 chars.
+keyword early and the title ≤ 70 chars. Also set storyboard `"theme"` to the theme key (music mood follows it) and `"series_label"` to the theme label
+(shown next to the DeliteCoder logo in every frame).
 
 Length: plan from narration, ~100–145 words (≈45–60 s at ~150 wpm). Never pad. Plain spoken
 English, short sentences, no filler like "in this video".

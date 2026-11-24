@@ -54,10 +54,38 @@ CONTENT_ROTATION = ("trending_search", "tech_story", "trending_news", "motivatio
                     "trending_search", "tech_story", "trending_news")   # Mon … Sun
 
 
-def theme_for(day) -> dict:
-    """The content theme for a date (a datetime.date in the channel timezone)."""
+def theme_for(day, plan: list[dict] | None = None) -> dict:
+    """The content theme for a date (a datetime.date in the channel timezone).
+
+    `plan` = rows of the ThemePlan sheet tab (date, theme, details). A row for this date wins:
+    its theme may be a theme key/label ("motivation", "Tech Story") or any free text such as
+    "AI in healthcare"; `details` is passed to the researcher as extra direction."""
+    for row in reversed(plan or []):                       # the last row for a date wins
+        if _plan_date(row.get("date", "")) != day or not row.get("theme", "").strip():
+            continue
+        text, details = row["theme"].strip(), row.get("details", "").strip()
+        norm = text.lower().replace(" ", "_").replace("-", "_")
+        for key, t in CONTENT_THEMES.items():
+            if norm in (key, t["label"].lower().replace(" ", "_")):
+                brief = t["brief"] + (f". Owner direction: {details}" if details else "")
+                return {"key": key, "label": t["label"], "brief": brief, "source": "ThemePlan"}
+        brief = f"owner-chosen topic/theme: {text}" + (f". Details: {details}" if details else "")
+        return {"key": "custom", "label": text[:28], "brief": brief, "source": "ThemePlan"}
     key = CONTENT_ROTATION[day.weekday()]
-    return {"key": key, **CONTENT_THEMES[key]}
+    return {"key": key, **CONTENT_THEMES[key], "source": "rotation"}
+
+
+def _plan_date(s: str):
+    """Accepts 2026-11-25, 25/11/2026, 25-11-2026, 25.11.2026 (day first, as typed in India)."""
+    from datetime import datetime as _dt
+
+    s = str(s).strip()
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%d/%m/%y"):
+        try:
+            return _dt.strptime(s, fmt).date()
+        except ValueError:
+            continue
+    return None
 
 FOLDER_KEYS = (
     "root", "config", "inbox", "inbox_videos", "inbox_documents", "inbox_references",

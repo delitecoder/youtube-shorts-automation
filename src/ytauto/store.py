@@ -46,6 +46,8 @@ TABS: dict[str, tuple[str, ...]] = {
                   "subscribersGained", "raw"),
     "Configuration": ("key", "value", "updated_at"),
     "ErrorLog": ("logged_at", "video_id", "component", "severity", "message", "notified"),
+    # Owner-written plan: a row for a date overrides that day's theme rotation (see config.theme_for).
+    "ThemePlan": ("date", "theme", "details"),
 }
 
 VIDEO_ID_RE = re.compile(r"^VIDEO-(\d{8})-(\d{3})$")

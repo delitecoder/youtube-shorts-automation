@@ -23,7 +23,7 @@
 
 // Bump on every change and add an entry to apps_script/CHANGELOG.md: the daily run compares this
 // with the deployed version and emails the approver when an update is needed.
-var SCRIPT_VERSION = '2026.11.24-2';
+var SCRIPT_VERSION = '2026.11.24-3';
 var TTL_HOURS = 24;
 var SLOT_MARGIN_MIN = 15;            // approvals must arrive this long before the publish slot
 var MAX_UPLOAD_BYTES = 45 * 1024 * 1024;   // Apps Script blob limit (generated Shorts are ~5 MB)
@@ -101,6 +101,7 @@ function run() {
     expire_(ss);
     if (props_().getProperty('UPLOADER') === 'cloud_run') callPublisher_(ss); else uploadApproved_(ss);
     noVideoCheck_(ss);
+    cleanupArchive_(ss);
     sendNotifications_(ss);
   } catch (e) {
     try { logError_(SpreadsheetApp.openById(prop_('SPREADSHEET_ID')), '', 'apps_script', String(e)); } catch (ignored) {}
@@ -179,13 +180,18 @@ function sendRequests_(ss) {
     var buttons = props_().getProperty('APPROVAL_BUTTONS_URL') || '';   // approver's approval_buttons.gs web app
     if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(buttons)) buttons = '';
     var subject = '🎬 Approve today\'s Short? ' + r.video_id + ' · ' + r.title;
+    var cands = candidates_(ss, r);                     // recently skipped videos, offered as alternatives
+    var btn_ = function (action, vid) { return buttons + '?a=' + action + '&v=' + vid + '&r=' + r.video_id; };
     var plain = [
       'Video ' + r.video_id + ': ' + r.title, 'Preview (private Drive link): ' + r.preview_url,
       'Publishes: ' + ist_(r.proposed_publish_at) + ' if approved before ' + ist_(new Date(deadline).toISOString()),
       '', 'Reply with exactly one line:', '  APPROVED ' + r.video_id, '  REJECTED ' + r.video_id,
-      buttons ? 'Or use the buttons: approve ' + buttons + '?a=approve&v=' + r.video_id +
-                ' | reject ' + buttons + '?a=reject&v=' + r.video_id : '',
-      'No reply = skipped (nothing is uploaded).'].join('\n');
+      buttons ? 'Or use the buttons: approve ' + btn_('approve', r.video_id) +
+                ' | reject ' + btn_('reject', r.video_id) : '',
+      cands.length ? '\nOr upload a skipped video in this slot instead (reply APPROVED <its id>):' : '']
+      .concat(cands.map(function (c) { return '  APPROVED ' + c.video_id + '  (' + c.title + ') ' + c.preview_url +
+                                               (buttons ? ' | ' + btn_('approve', c.video_id) : ''); })).concat([
+      'No reply = skipped (nothing is uploaded).']).join('\n');
     var poster = null;
     if (qr.poster_file_id) { try { poster = DriveApp.getFileById(qr.poster_file_id).getBlob().setName('poster.jpg'); } catch (e) {} }
     var imgs = (qr.images || []).map(function (i) {
@@ -213,9 +219,9 @@ function sendRequests_(ss) {
       (refsHtml ? '<p style="margin:14px 0 4px"><b>Sources</b></p><ul style="font-size:13px;padding-left:18px">' + refsHtml + '</ul>' : '') +
       '<div style="background:#ecfdf3;border:1px solid #a6f4c5;border-radius:12px;padding:14px 16px;margin-top:16px">' +
       (buttons ? '<p style="margin:0 0 12px">' +
-        '<a href="' + esc_(buttons + '?a=approve&v=' + r.video_id) + '" style="background:#16a34a;color:#fff;padding:12px 22px;' +
+        '<a href="' + esc_(btn_('approve', r.video_id)) + '" style="background:#16a34a;color:#fff;padding:12px 22px;' +
         'border-radius:10px;text-decoration:none;font-weight:bold;display:inline-block;margin:0 8px 8px 0">✔ Approve</a>' +
-        '<a href="' + esc_(buttons + '?a=reject&v=' + r.video_id) + '" style="background:#dc2626;color:#fff;padding:12px 22px;' +
+        '<a href="' + esc_(btn_('reject', r.video_id)) + '" style="background:#dc2626;color:#fff;padding:12px 22px;' +
         'border-radius:10px;text-decoration:none;font-weight:bold;display:inline-block;margin:0 0 8px 0">✖ Reject</a><br>' +
         '<span style="color:#555;font-size:13px">A button sends the reply below for you from your Gmail.</span></p>' +
         '<b>Or reply to this email with exactly one line:</b><br>'
@@ -224,6 +230,16 @@ function sendRequests_(ss) {
       '<code style="font-size:16px">REJECTED ' + esc_(r.video_id) + '</code> &nbsp;to skip<br>' +
       '<span style="color:#555;font-size:13px">Approve before <b>' + ist_(new Date(deadline).toISOString()) +
       '</b>. No reply = skipped, nothing is uploaded.</span></div>' +
+      (cands.length ? '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:14px 16px;margin-top:14px">' +
+        '<b>Or upload a skipped video in this slot instead</b><br><span style="color:#555;font-size:13px">' +
+        'Approving one of these uses today\'s slot; the others (and today\'s new video) stay skipped for later.</span>' +
+        cands.map(function (c) {
+          return '<div style="border-top:1px solid #fde3c8;margin-top:10px;padding-top:10px"><b>' + esc_(c.title) + '</b><br>' +
+            '<a href="' + esc_(c.preview_url) + '">▶ preview</a> &nbsp; ' +
+            (buttons ? '<a href="' + esc_(btn_('approve', c.video_id)) + '" style="background:#16a34a;color:#fff;padding:8px 16px;' +
+              'border-radius:8px;text-decoration:none;font-weight:bold">✔ Upload this one</a> &nbsp; ' : '') +
+            '<code>APPROVED ' + esc_(c.video_id) + '</code></div>';
+        }).join('') + '</div>' : '') +
       '<p style="color:#99a;font-size:11px;margin-top:14px">SHA-256 ' + esc_(r.sha256) + '</p></div></div>';
     var opts = { htmlBody: html };
     if (poster) opts.inlineImages = { poster: poster };
@@ -241,6 +257,37 @@ function sendRequests_(ss) {
       approval_expires_at: new Date(deadline_(sentAt, r.proposed_publish_at)).toISOString().replace(/\.\d{3}Z$/, '+00:00')
     });
     if (!ok) logError_(ss, r.video_id, 'apps_script', 'request sent but row changed concurrently; check manually');
+    reoffer_(ss, cands, r, msg, sentAt, approver);
+  });
+}
+
+/** Skipped (EXPIRED) videos from the last 7 days that were never uploaded and whose file still exists. */
+function candidates_(ss, r) {
+  var since = Utilities.formatDate(new Date(Date.now() - 7 * 864e5), 'Asia/Kolkata', 'yyyyMMdd');
+  return table_(ss, 'VideoQueue').rows.filter(function (c) {
+    if (c.state !== 'EXPIRED' || c.video_id === r.video_id || !c.drive_file_id || !snap_(c.video_id)) return false;
+    if (c.video_id.slice(6, 14) < since || props_().getProperty('up:' + c.video_id)) return false;
+    try { return !DriveApp.getFileById(c.drive_file_id).isTrashed(); } catch (e) { return false; }
+  }).sort(function (a, b) { return a.video_id < b.video_id ? 1 : -1; }).slice(0, 3);
+}
+
+/** Put the offered skipped videos into this request: same thread, today's slot, fresh snapshot. */
+function reoffer_(ss, cands, r, msg, sentAt, approver) {
+  cands.forEach(function (c) {
+    var old = snap_(c.video_id);
+    props_().setProperty('req:' + c.video_id, JSON.stringify(Object.assign({}, old, {
+      publish_at: r.proposed_publish_at, thread_id: msg.getThread().getId(),
+      request_message_id: msg.getId(), requested_at: sentAt })));
+    if (props_().getProperty('APPROVER_IS_OWNER') === 'false') {
+      try { DriveApp.getFileById(c.drive_file_id).addViewer(approver); } catch (e) {}
+    }
+    if (!casUpdate_(ss, c.video_id, 'EXPIRED', c.version, {
+          state: 'AWAITING_APPROVAL', approval_thread_id: msg.getThread().getId(),
+          approval_request_message_id: msg.getId(), approval_requested_at: sentAt,
+          proposed_publish_at: r.proposed_publish_at,
+          approval_expires_at: new Date(deadline_(sentAt, r.proposed_publish_at)).toISOString().replace(/\.\d{3}Z$/, '+00:00'),
+          notes: 're-offered with ' + r.video_id }))
+      logError_(ss, c.video_id, 'apps_script', 'could not re-offer skipped video (row changed)', 'WARNING');
   });
 }
 
@@ -315,19 +362,29 @@ function checkReplies_(ss) {
   var logRows = table_(ss, 'ApprovalLog').rows;
   var used = {};
   logRows.forEach(function (l) { used[l.message_id] = true; });
+  // One request thread can offer several videos: today's new one + re-offered skipped ones.
+  var groups = {}, order = [];
   table_(ss, 'VideoQueue').rows.forEach(function (r) {
     if (r.state !== 'AWAITING_APPROVAL' || !r.approval_thread_id) return;
-    var thread = GmailApp.getThreadById(r.approval_thread_id);
+    if (!groups[r.approval_thread_id]) { groups[r.approval_thread_id] = []; order.push(r.approval_thread_id); }
+    groups[r.approval_thread_id].push(r);
+  });
+  order.forEach(function (tid) {
+    var rows = groups[tid].sort(function (a, b) { return a.video_id < b.video_id ? 1 : -1; });   // newest first
+    var thread = GmailApp.getThreadById(tid);
     if (!thread) return;
     var decided = false;
     thread.getMessages().forEach(function (msg) {
       var id = msg.getId();
-      if (decided || used[id] || id === r.approval_request_message_id) return;
+      if (decided || used[id] || id === rows[0].approval_request_message_id || !rows.length) return;
       var full = Gmail.Users.Messages.get('me', id, { format: 'metadata', metadataHeaders: ['Authentication-Results'] });
       var authHdr = ((full.payload && full.payload.headers) || []).filter(function (h) {
         return h.name.toLowerCase() === 'authentication-results'; })[0];
       var ev = { message_id: id, thread_id: msg.getThread().getId(), sender: msg.getFrom(), sent_at: msg.getDate(),
                  body: msg.getPlainBody(), label_ids: full.labelIds || [], auth_results: authHdr ? authHdr.value : '' };
+      // the reply names the video it decides; default to the thread's own (newest) video
+      var lines = newText_(ev.body), named = lines.length === 1 ? (lines[0].match(CMD_RE) || [])[2] : null;
+      var r = rows.filter(function (x) { return x.video_id === named; })[0] || rows[0];
       var entry = { logged_at: nowIso_(), video_id: r.video_id, message_id: id, thread_id: ev.thread_id,
                     sender: ev.sender, sent_at: ev.sent_at.toISOString().replace(/\.\d{3}Z$/, '+00:00'),
                     label_ids: ev.label_ids.join(','), auth_results: ev.auth_results.slice(0, 1000),
@@ -341,9 +398,16 @@ function checkReplies_(ss) {
           ? { state: target, approval_message_id: id, approved_by: approver, approved_at: entry.sent_at, webhook_status: 'pending' }
           : { state: target, approval_message_id: id, notes: 'rejected by approver' };
         if (casUpdate_(ss, r.video_id, 'AWAITING_APPROVAL', r.version, upd)) {
-          entry.accepted = 'true'; entry.transition = 'AWAITING_APPROVAL->' + target; decided = true;
-          if (decision === 'YES') props_().setProperty('appr:' + r.video_id,
-            JSON.stringify({ message_id: id, approved_at: entry.sent_at }));
+          entry.accepted = 'true'; entry.transition = 'AWAITING_APPROVAL->' + target;
+          rows = rows.filter(function (x) { return x.video_id !== r.video_id; });
+          if (decision === 'YES') {
+            decided = true;                                  // one video per slot: the others are skipped
+            props_().setProperty('appr:' + r.video_id, JSON.stringify({ message_id: id, approved_at: entry.sent_at }));
+            rows.forEach(function (o) {
+              casUpdate_(ss, o.video_id, 'AWAITING_APPROVAL', o.version,
+                         { state: 'EXPIRED', notes: 'skipped: ' + r.video_id + ' was chosen for this slot' });
+            });
+          }
         } else {
           entry.reason = 'state changed concurrently; not applied';
         }
@@ -494,6 +558,32 @@ function archiveVideo_(ss, r) {
   } catch (e) {
     logError_(ss, r.video_id, 'archive', 'Uploaded, but moving the file to Archive failed: ' + e, 'WARNING');
   }
+}
+
+/* ------------------------------------------------------------------ 4b2. archive cleanup */
+var ARCHIVE_KEEP_DAYS = 30;
+/** Once a day: moves to Drive Trash (restorable for 30 more days) the Archive files of videos
+ *  that are PUBLISHED on YouTube for more than ARCHIVE_KEEP_DAYS days. Anything not published
+ *  (skipped, rejected, failed, unknown files) is never touched. */
+function cleanupArchive_(ss) {
+  var day = Utilities.formatDate(new Date(), 'Asia/Kolkata', 'yyyyMMdd');
+  if (props_().getProperty('cleanup:' + day)) return;
+  props_().setProperty('cleanup:' + day, 'done');
+  var archiveId = props_().getProperty('ARCHIVE_FOLDER_ID') || keysFile_().ARCHIVE_FOLDER_ID;
+  if (!archiveId) return;
+  var cutoff = Date.now() - ARCHIVE_KEEP_DAYS * 864e5, n = 0;
+  var byFile = {};
+  table_(ss, 'VideoQueue').rows.forEach(function (r) { if (r.drive_file_id) byFile[r.drive_file_id] = r; });
+  var files = DriveApp.getFolderById(archiveId).getFiles();
+  while (files.hasNext()) {
+    var f = files.next(), r = byFile[f.getId()];
+    if (!r || r.state !== 'PUBLISHED' || !r.youtube_video_id) continue;
+    var published = new Date(r.proposed_publish_at || r.updated_at || '').getTime();
+    if (!(published < cutoff)) continue;
+    try { f.setTrashed(true); n++; } catch (e) { logError_(ss, r.video_id, 'archive', 'Cleanup failed: ' + e, 'WARNING'); }
+  }
+  if (n) logError_(ss, '', 'archive', 'Archive cleanup: moved ' + n + ' published video file(s) older than ' +
+                   ARCHIVE_KEEP_DAYS + ' days to Drive Trash (restorable for 30 days).', 'INFO');
 }
 
 /* ------------------------------------------------------------------ 4c. "no video today" watchdog */

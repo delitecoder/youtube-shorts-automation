@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import math
+import shutil
 import re
 import subprocess
 from pathlib import Path
@@ -23,6 +24,7 @@ from .media_probe import loudness_lufs, probe
 
 W, H, FPS = 1080, 1920, 30
 MARGIN_L, MARGIN_R = 90, 150
+LOGO_PX = 76
 BG_TOP, BG_BOTTOM = (10, 14, 32), (22, 18, 48)
 WHITE, MUTED = (245, 247, 255), (150, 160, 190)
 ACCENTS = [(34, 211, 238), (251, 191, 36), (244, 114, 182), (163, 230, 53)]
@@ -276,11 +278,22 @@ def render(storyboard: dict, scene_audio: list[Path], workdir: Path, out_mp4: Pa
         if s["visual"]["type"] == "image":
             name = Path(s["visual"]["asset"]).name                 # no path traversal
             images[s["visual"]["asset"]] = Image.open(workdir / "assets" / name).convert("RGB")
+    # channel branding (logo badge + handle), same look in both engines
+    from . import brand as brandmod
+    logo_src, handle = brandmod.logo_path(), brandmod.handle()
+    logo_img = None
+    if logo_src:
+        (workdir / "assets").mkdir(exist_ok=True)
+        shutil.copy(logo_src, workdir / "assets" / brandmod.LOGO_NAME)
+        logo_img = Image.open(logo_src).convert("RGBA").resize((LOGO_PX, LOGO_PX), Image.LANCZOS)
+    series = storyboard.get("series_label") or "TECH IN 60s"
+    top_label = f"{series.upper()}  ·  {handle}" if handle else series.upper()
     raw_wav, norm_wav = workdir / "narration_raw.wav", workdir / "narration.wav"
     timings = audio.build_timeline(scene_audio, raw_wav)
     seed = sum(storyboard.get("video_id", "x").encode())
     attributions = sound.mix(raw_wav, norm_wav, timings[-1]["end"], scenes, timings, workdir, seed,
-                             music=music, sfx=sfx, sfx_dir=sfx_dir, music_dir=music_dir)
+                             music=music, sfx=sfx, sfx_dir=sfx_dir, music_dir=music_dir,
+                             theme=storyboard.get("theme"))
     (workdir / "attributions.json").write_text(json.dumps(attributions, indent=1))
     caps = captions.build(scenes, timings)
     (workdir / "captions.srt").write_text(captions.to_srt(caps))
@@ -289,7 +302,8 @@ def render(storyboard: dict, scene_audio: list[Path], workdir: Path, out_mp4: Pa
     if engine in ("auto", "hyperframes"):
         from . import hyperframes as hfr
         try:
-            proj = hfr.build(storyboard, timings, caps, workdir, storyboard.get("series_label", "TECH IN 60s"))
+            proj = hfr.build(storyboard, timings, caps, workdir, top_label,
+                             logo=f"assets/{brandmod.LOGO_NAME}" if logo_img else None)
             hfr.render(proj, norm_wav, out_mp4, n_frames / FPS)
             report = qc(out_mp4, timings)
             report |= {"attributions": attributions, "engine": "hyperframes"}
@@ -325,7 +339,19 @@ def render(storyboard: dict, scene_audio: list[Path], workdir: Path, out_mp4: Pa
             d = ImageDraw.Draw(layer)
             # top bar: progress + series label
             d.rectangle([0, 150, int(W * t / duration), 158], fill=accent)
-            d.text((MARGIN_L, 90), storyboard.get("series_label", "TECH IN 60s"), font=F["small"], fill=MUTED)
+            lx = MARGIN_L
+            if logo_img:
+                pop = ease(min(t / 0.5, 1.0))
+                if pop > 0.05:
+                    sz = max(int(LOGO_PX * pop), 1)
+                    layer.alpha_composite(logo_img.resize((sz, sz)), (MARGIN_L + (LOGO_PX - sz) // 2, 58 + (LOGO_PX - sz) // 2))
+                lx += LOGO_PX + 22
+            d.text((lx, 84), top_label, font=F["small"], fill=MUTED)
+            n_sc = len(scenes)                       # chapter dashes (top right)
+            for k in range(n_sc):
+                x0 = W - 60 - (n_sc - k) * 42
+                d.rounded_rectangle([x0, 174, x0 + 34, 182], 3,
+                                    fill=(ACCENTS[si % len(ACCENTS)] if k <= si else (70, 78, 110)))
             head_a = ease(p * 6)
             for j, line in enumerate(wrap(d, s.get("on_screen_text", ""), F["head"], W - MARGIN_L - MARGIN_R)[:2]):
                 d.text((MARGIN_L, 240 + j * 80 + (1 - head_a) * 30), line, font=F["head"],

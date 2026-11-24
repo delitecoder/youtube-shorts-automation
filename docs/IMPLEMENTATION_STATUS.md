@@ -24,6 +24,17 @@ _Last updated: 2026-11-24_
   `APPROVAL_BUTTONS_URL` → approver-owned web app `apps_script/approval_buttons.gs` that sends the
   normal one-line reply from the approver's Gmail. Gate rules unchanged (gate.py untouched).
 
+## Added (2026-11-24: branding, music mood, theme plan, skipped-video choice, cleanup)
+- Branding (production/brand.py): logo badge + @handle + series label top-left, pop-in/pulse,
+  chapter dashes; both renderers. Logo synced by `sync-library` (Drive original, else channel avatar).
+- Music: numpy analysis (tempo/energy/brightness, cached in music_features.json) picks licensed
+  library tracks by theme mood (`THEME_MOOD`); procedural music tempo follows the theme.
+- Sheet tab `ThemePlan` (date, theme, details) overrides the rotation for that date.
+- Apps Script 2026.11.24-3: skipped (EXPIRED, ≤7 days) videos re-offered in the approval thread
+  (EXPIRED → AWAITING_APPROVAL allowed); one approval per thread, others back to EXPIRED.
+  Daily trash of Archive files of videos published > 30 days.
+- Owner request checklist: docs/OWNER_REQUESTS.md.
+
 ## Added (round 2)
 - Voice fallback chain: Google → Kokoro-82M (offline, tested for real here, ~real-time) → Piper;
   Edge TTS opt-in only. One voice per video; budget exhaustion falls back instead of failing.

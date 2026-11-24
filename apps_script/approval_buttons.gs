@@ -16,14 +16,14 @@
  *  3. In the approval_watcher project: Project Settings → Script Properties → add
  *     APPROVAL_BUTTONS_URL = that URL. New approval emails then show the two buttons.
  */
-var BUTTONS_VERSION = '2026.11.24-2';
+var BUTTONS_VERSION = '2026.11.24-3';
 var VID_RE = /^VIDEO-\d{8}-\d{3}$/;
 var ACTIONS = { approve: 'APPROVED', reject: 'REJECTED' };
 
 function doGet(e) {
   var p = (e && e.parameter) || {};
-  var cmd = ACTIONS[p.a], vid = String(p.v || '');
-  if (!cmd || !VID_RE.test(vid)) return page_('Invalid link', 'This link is not a valid approval button.', '');
+  var cmd = ACTIONS[p.a], vid = String(p.v || ''), req = String(p.r || p.v || '');
+  if (!cmd || !VID_RE.test(vid) || !VID_RE.test(req)) return page_('Invalid link', 'This link is not a valid approval button.', '');
   var t = HtmlService.createTemplate(
     '<p>Send <b><?= cmd ?> <?= vid ?></b> as your reply to the approval email?</p>' +
     '<button id="b" onclick="go()" style="font-size:18px;padding:14px 26px;border:0;border-radius:10px;color:#fff;' +
@@ -33,17 +33,19 @@ function doGet(e) {
     '<script>function go(){var b=document.getElementById("b");b.disabled=true;b.textContent="Sending…";' +
     'google.script.run.withSuccessHandler(function(r){document.getElementById("m").textContent=r;b.style.display="none";})' +
     '.withFailureHandler(function(err){document.getElementById("m").textContent="Not sent: "+err.message;b.disabled=false;})' +
-    '.sendDecision(<?!= JSON.stringify(p.a) ?>,<?!= JSON.stringify(vid) ?>);}</script>');
-  t.cmd = cmd; t.vid = vid; t.p = { a: p.a };
+    '.sendDecision(<?!= JSON.stringify(p.a) ?>,<?!= JSON.stringify(vid) ?>,<?!= JSON.stringify(req) ?>);}</script>');
+  t.cmd = cmd; t.vid = vid; t.req = req; t.p = { a: p.a };
   return page_('Approval: ' + vid, '', t.evaluate().getContent());
 }
 
-/** Replies to the approval request for `vid` from this (the approver's) mailbox. */
-function sendDecision(action, vid) {
+/** Replies "<cmd> <vid>" to the approval email of request `req` (default: vid) from this mailbox.
+ *  `req` differs from `vid` when a skipped video is chosen from today's email. */
+function sendDecision(action, vid, req) {
   var cmd = ACTIONS[action];
-  if (!cmd || !VID_RE.test(String(vid))) throw new Error('invalid request');
-  var request = findRequest_(vid);
-  if (!request) throw new Error('approval email for ' + vid + ' not found in this mailbox (last 3 days)');
+  req = req || vid;
+  if (!cmd || !VID_RE.test(String(vid)) || !VID_RE.test(String(req))) throw new Error('invalid request');
+  var request = findRequest_(req);
+  if (!request) throw new Error('approval email for ' + req + ' not found in this mailbox (last 3 days)');
   request.reply(cmd + ' ' + vid);
   return 'Sent "' + cmd + ' ' + vid + '". The video updates within 5 minutes; you can close this page.';
 }

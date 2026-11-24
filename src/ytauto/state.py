@@ -42,7 +42,7 @@ TRANSITIONS: dict[State, frozenset[State]] = {
     S.SCHEDULED: frozenset({S.PUBLISHED, S.NEEDS_MANUAL_REVIEW}),
     S.PUBLISHED: frozenset(),
     S.REJECTED: frozenset(),
-    S.EXPIRED: frozenset(),
+    S.EXPIRED: frozenset({S.AWAITING_APPROVAL}),   # re-offered in a later approval email
     S.FAILED: frozenset(),
     S.NEEDS_MANUAL_REVIEW: frozenset(),
 }

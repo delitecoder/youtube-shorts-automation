@@ -124,11 +124,19 @@ def cmd_discover(ctx: Ctx, a) -> int:
         if not ctx.s.dry_run:
             raise
         out({"action": "research", "note": f"Drive unavailable in dry run: {e}",
-             "theme": theme_for(_today_local(ctx))})
+             "theme": _theme_today(ctx)})
         return 0
     out({"action": "research", "note": "no unprocessed Drive items",
-         "theme": theme_for(_today_local(ctx))})
+         "theme": _theme_today(ctx)})
     return 0
+
+
+def _theme_today(ctx: Ctx) -> dict:
+    try:
+        plan = ctx.store.rows("ThemePlan")
+    except Exception:                      # tab missing / sheet unavailable: use the rotation
+        plan = []
+    return theme_for(_today_local(ctx), plan)
 
 
 def _new_record(ctx: Ctx, source_type: str, source_file_id: str = "") -> VideoRecord:
@@ -360,8 +368,56 @@ def cmd_sync_library(ctx: Ctx, a) -> int:
                 ctx.drive.download(names[nm], dest / Path(nm).name)
                 n += 1
         got[sub] = f"{n} new files"
+    try:
+        got["brand"] = _sync_brand(ctx)
+    except Exception as e:                       # branding is optional; never block a video
+        got["brand"] = f"unavailable ({type(e).__name__}: {str(e)[:120]})"
     out({"ok": True, "library": got})
     return 0
+
+
+def _sync_brand(ctx: Ctx) -> str:
+    """Logo badge: Drive References/Images/brand_logo.png, else the channel avatar (saved to Drive)."""
+    import urllib.request
+
+    from ..production import brand
+
+    files = {f["name"]: f for f in ctx.drive.list_folder("references_images", "image/", limit=100)}
+    if brand.LOGO_NAME in files:
+        f = files[brand.LOGO_NAME]
+        stamp = brand.BRAND_DIR / ".drive_id"
+        if brand.logo_path() and stamp.exists() and stamp.read_text() == f["id"] + f.get("modifiedTime", ""):
+            return "cached"
+        tmp = brand.BRAND_DIR / "drive_logo.tmp"
+        ctx.drive.download(f["id"], tmp)
+        brand.make_badge(tmp.read_bytes())
+        tmp.unlink()
+        stamp.write_text(f["id"] + f.get("modifiedTime", ""))
+        if not brand.handle():
+            brand.save_meta(_channel()[1] if not ctx.s.dry_run else "")
+        return "from Drive"
+    url, handle = _channel()
+    with urllib.request.urlopen(url, timeout=30) as r:            # nosec - Google-hosted avatar URL
+        raw = r.read()
+    brand.make_badge(raw)
+    brand.save_meta(handle)
+    if not ctx.s.dry_run:                                         # keep the ORIGINAL logo on Drive
+        src = brand.BRAND_DIR / "source" / brand.LOGO_NAME
+        src.parent.mkdir(exist_ok=True)
+        src.write_bytes(raw)
+        f = ctx.drive.upload(src, "references_images", mime="image/png",
+                             description="DeliteCoder logo used in every video (replace this file to change it)")
+        (brand.BRAND_DIR / ".drive_id").write_text(f["id"] + f.get("modifiedTime", ""))
+        src.unlink()
+    return "from YouTube channel avatar (saved to Drive)"
+
+
+def _channel() -> tuple[str, str]:
+    from ..integrations.google_auth import build_service
+
+    items = build_service("youtube", "v3", "pipeline").channels().list(part="snippet", mine=True).execute()["items"]
+    sn = items[0]["snippet"]
+    return sn["thumbnails"]["high"]["url"], sn.get("customUrl", "")
 
 
 def _credits_block(video_id: str) -> str:

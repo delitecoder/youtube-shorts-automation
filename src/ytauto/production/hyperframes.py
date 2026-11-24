@@ -170,6 +170,9 @@ html,body{margin:0;background:#0a0e20}
 .grid{position:absolute;inset:-60px;background-image:radial-gradient(#2a3463 2px,transparent 2px);background-size:60px 60px;opacity:.55}
 .particle{position:absolute;width:10px;height:10px;border-radius:50%;filter:blur(1px);opacity:.5}
 .top{position:absolute;left:90px;right:150px;top:84px;color:#96a0be;font-size:32px;letter-spacing:3px}
+.top.withlogo{left:188px}
+.logo{position:absolute;left:90px;top:58px;width:76px;height:76px;border-radius:16px;box-shadow:0 6px 18px rgba(0,0,0,.45)}
+.chapters{position:absolute;right:60px;top:174px;display:flex;gap:8px}.chapters i{display:block;width:34px;height:8px;border-radius:3px;background:#464e6e}
 .progress{position:absolute;left:0;top:150px;height:8px;width:1080px;transform-origin:left}
 .scene{position:absolute;left:0;top:0;width:1080px;height:1920px}
 .head{position:absolute;left:90px;right:150px;top:230px;font-size:66px;font-weight:700;line-height:1.15}
@@ -213,7 +216,7 @@ html,body{margin:0;background:#0a0e20}
 
 
 def build(storyboard: dict, timings: list[dict], caps: list[dict], workdir: Path,
-          series_label: str = "TECH IN 60s") -> Path:
+          series_label: str = "TECH IN 60s", logo: str | None = None) -> Path:
     """Write <workdir>/hf/index.html (+ gsap + assets) and return the project dir."""
     proj = workdir / "hf"
     if proj.exists():
@@ -236,7 +239,16 @@ def build(storyboard: dict, timings: list[dict], caps: list[dict], workdir: Path
         body.append(f'<div class="particle" id="p{p}" style="left:{x}px;top:{y}px;background:{col}"></div>')
         js.append(f'tl.to("#p{p}",{{y:-{rnd.randint(120, 380)},x:{rnd.randint(-60, 60)},opacity:{rnd.uniform(.2, .8):.2f},'
                   f'duration:{duration:.2f},ease:"sine.inOut"}},0);')
-    body.append(f'<div class="top">{e(series_label)}</div>')
+    if logo:                                   # brand badge: pops in, pulses on every scene change
+        body.append(f'<img class="logo" id="logo" src="{e(logo)}">')
+        js.append('tl.from("#logo",{scale:0,rotation:-25,duration:0.5,ease:"back.out(2)"},0);')
+        for tm in timings[1:]:
+            js.append(f'tl.fromTo("#logo",{{scale:1.18}},{{scale:1,duration:0.3,ease:"power2.out"}},{tm["start"]:.3f});')
+    body.append(f'<div class="top{" withlogo" if logo else ""}">{e(series_label)}</div>')
+    dashes = "".join(f'<i id="ch{k}"></i>' for k in range(len(storyboard["scenes"])))
+    body.append(f'<div class="chapters">{dashes}</div>')
+    for k, tm in enumerate(timings):
+        js.append(f'tl.set("#ch{k}",{{background:"{ACCENTS[k % 4]}"}},{tm["start"]:.3f});')
     body.append(f'<div class="progress" id="prog" style="background:{ACCENTS[0]}"></div>')
     js.append(f'tl.fromTo("#prog",{{scaleX:0}},{{scaleX:1,duration:{duration:.2f},ease:"none"}},0);')
 

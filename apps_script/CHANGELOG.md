@@ -2,6 +2,16 @@
 
 The owner updates the script; Claude never pushes it. Newest first. Each entry = one SCRIPT_VERSION.
 
+## 2026.11.24-3
+- Approval email also offers up to 3 **skipped videos** from the last 7 days ("Upload this one"
+  button or reply `APPROVED <their id>`). Choosing one uses today's slot; the others, including
+  today's new video, stay skipped and can be chosen another day.
+- Daily **archive cleanup**: Archive files of videos published more than 30 days ago go to Drive
+  Trash (restorable for 30 days). Skipped/rejected/unknown files are never touched.
+- Buttons web app (`approval_buttons.gs`) updated too: re-paste it and redeploy (Manage
+  deployments → edit → New version) so the skipped-video buttons work.
+- No new service or permission.
+
 ## 2026.11.24-2
 - Approval email can show one-click **Approve / Reject** buttons. They open a small web app
   (`apps_script/approval_buttons.gs`, a separate project owned by the approver) that sends the

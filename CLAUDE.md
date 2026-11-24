@@ -63,7 +63,8 @@ Run from the repo root with `PYTHONPATH=src`. Work files go in `runtime/work/<VI
 
 1. `python -m ytauto doctor` → stop and report if `ok` is false.
    `bash scripts/fetch_kokoro.sh` (offline fallback voice) and `python -m ytauto sync-library`
-   (SFX/music libraries; procedural sound is used when empty).
+   (SFX/music libraries; procedural sound is used when empty; also caches the DeliteCoder logo
+   badge from Drive `References/Images/brand_logo.png`, shown in every video).
    `python -m ytauto apps-script-check` — if the owner's approval Apps Script is older than this
    repo, the approver is emailed once with what changed and how to update. Never push or edit the
    deployed Apps Script yourself.
@@ -85,8 +86,9 @@ Run from the repo root with `PYTHONPATH=src`. Work files go in `runtime/work/<VI
      `python -m ytauto doc-text --file-id <id>` → continue with step 5 (source_type drive_document).
    - `research`: `python -m ytauto new-item` → step 5. The output's `theme` is today's content
      theme (weekday rotation in IST, `CONTENT_ROTATION` in src/ytauto/config.py: Mon/Fri trending
-     tech searches, Tue/Sat tech story, Wed/Sun tech news, Thu tech motivation). Pass it to the
-     researcher and storywriter.
+     tech searches, Tue/Sat tech story, Wed/Sun tech news, Thu tech motivation). A row for today in
+     the sheet tab `ThemePlan` (date, theme, details) overrides it (`theme.source`). Pass the whole
+     `theme` to the researcher and storywriter.
 5. **researcher** (haiku) → `research.json` (give it the day's `theme` and ResearchHistory topic_keys to avoid) →
    `python -m ytauto record-research --video-id … --file research.json` (fix and retry once on errors).
    After EVERY step from here on: `python -m ytauto checkpoint --video-id …` (saves work to Drive so

@@ -18,6 +18,8 @@ Daily theme (given by the caller from `discover` → `theme`; pick a topic that 
 - motivation: a real, verifiable story of a founder, engineer, student or team in tech who
   overcame failure. Quotes only if sourced verbatim; no invented dialogue or "rags to riches"
   myths. Add one practical lesson as a fact-backed claim. Category "motivation".
+- custom: the owner chose this topic in the ThemePlan sheet; follow the theme `brief` exactly
+  (closest allowed category). Owner `details` in any brief are direction to follow.
 
 Input you receive: either document text (source_type "drive_document") or "research", plus a list
 of topic_keys already covered (avoid them) and an optional analytics summary.
