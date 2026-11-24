@@ -21,6 +21,9 @@
  * Setup: run setup() once, authorise, done.
  */
 
+// Bump on every change and add an entry to apps_script/CHANGELOG.md: the daily run compares this
+// with the deployed version and emails the approver when an update is needed.
+var SCRIPT_VERSION = '2026.11.24-1';
 var TTL_HOURS = 24;
 var SLOT_MARGIN_MIN = 15;            // approvals must arrive this long before the publish slot
 var MAX_UPLOAD_BYTES = 45 * 1024 * 1024;   // Apps Script blob limit (generated Shorts are ~5 MB)
@@ -92,6 +95,7 @@ function run() {
   if (!lock.tryLock(30000)) return;
   try {
     var ss = SpreadsheetApp.openById(prop_('SPREADSHEET_ID'));
+    reportVersion_(ss);
     sendRequests_(ss);
     checkReplies_(ss);
     expire_(ss);
@@ -103,6 +107,13 @@ function run() {
   } finally {
     lock.releaseLock();
   }
+}
+
+/** Record the deployed version (once per change) so the daily run can spot an outdated script. */
+function reportVersion_(ss) {
+  if (props_().getProperty('reported_version') === SCRIPT_VERSION) return;
+  append_(ss, 'Configuration', { key: 'apps_script_version', value: SCRIPT_VERSION, updated_at: nowIso_() });
+  props_().setProperty('reported_version', SCRIPT_VERSION);
 }
 
 /* ------------------------------------------------------------------ sheet helpers */
@@ -506,7 +517,9 @@ function sendNotifications_(ss) {
   var uploaded = pending.filter(function (r) { return String(r.message).indexOf('Uploaded ✓') === 0; }).length;
   var alerts = pending.filter(function (r) { return r.severity === 'ALERT'; });
   var audits = pending.filter(function (r) { return r.severity === 'AUDIT'; });
-  var subject = alerts.length ? '⚠️ Claude usage limit reached — no new videos until it resets'
+  var actions = pending.filter(function (r) { return r.severity === 'ACTION'; });
+  var subject = actions.length ? '🔧 Action needed: update your Apps Script'
+    : alerts.length ? '⚠️ Claude usage limit reached — no new videos until it resets'
     : uploaded ? '✅ Short uploaded' : audits.length === pending.length ? '📈 Daily views audit'
     : '[YouTube automation] ' + pending.length + ' update(s)';
   GmailApp.sendEmail(approver, subject, body);

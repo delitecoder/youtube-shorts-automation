@@ -27,6 +27,7 @@ from ..store import log_error, next_video_id
 from .context import Ctx
 
 WORK = RUNTIME_DIR / "work"
+ROOT_DIR = Path(__file__).resolve().parents[3]
 PIPELINE_STATES = {State.DISCOVERED, State.RESEARCHING, State.GENERATING, State.QUALITY_CHECK}
 CHECKPOINT_SKIP = (".wav",)      # voice/music are cheap to regenerate; everything else is kept
 
@@ -525,6 +526,37 @@ def cmd_restore(ctx: Ctx, a) -> int:
     return 0
 
 
+def repo_script_version() -> str:
+    import re as _re
+    m = _re.search(r"var SCRIPT_VERSION = '([^']+)'", (ROOT_DIR / "apps_script" / "approval_watcher.gs").read_text())
+    return m.group(1) if m else ""
+
+
+def cmd_apps_script_check(ctx: Ctx, a) -> int:
+    """Compare the deployed Apps Script version with this repo; email the approver once per version."""
+    want = repo_script_version()
+    have = ctx.store.get_config("apps_script_version", "")
+    if have == want:
+        out({"up_to_date": True, "version": have})
+        return 0
+    if ctx.store.get_config("apps_script_update_notified", "") != want:
+        log = (ROOT_DIR / "apps_script" / "CHANGELOG.md").read_text()
+        entry = log.split("## ")[1].strip() if "## " in log else want
+        script = "https://script.google.com/home"
+        msg = (f"Your approval Apps Script needs an update (running: {have or 'an older version'}, latest: {want}).\n\n"
+               f"What changed:\n## {entry}\n\nHow to update (2 minutes):\n"
+               "1. Open https://raw.githubusercontent.com/delitecoder/youtube-shorts-automation/main/apps_script/approval_watcher.gs "
+               "and copy everything.\n"
+               f"2. Open {script} → YouTube Shorts Approval Watcher → replace all code in Code.gs → Save.\n"
+               "3. If the changes mention a new service or permission, add it under Services (+).\n"
+               "4. Choose 'setup' → Run → Allow.\n"
+               "Claude never changes this script itself; nothing else is needed.")
+        log_error(ctx.store, "apps_script", msg, "", "ACTION")
+        ctx.store.set_config("apps_script_update_notified", want)
+    out({"up_to_date": False, "deployed": have or None, "latest": want, "approver_emailed": True})
+    return 0
+
+
 def cmd_audit(ctx: Ctx, a) -> int:
     """Daily views audit: analyse the channel, store guidance for the storywriter, email the owner."""
     from ..analytics import audit as au
@@ -680,6 +712,7 @@ def main(argv=None) -> int:
     sub.add_parser("sync-library")
     p = sub.add_parser("peak-time"); p.add_argument("--refresh", action="store_true")
     p = sub.add_parser("audit"); p.add_argument("--email", action="store_true")
+    sub.add_parser("apps-script-check")
     p = sub.add_parser("budget")
     p.add_argument("--five-hour", type=float, required=True, help="five_hour utilization 0-1")
     p.add_argument("--five-reset", type=int, required=True, help="five_hour resetsAt (epoch s)")

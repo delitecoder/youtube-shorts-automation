@@ -64,8 +64,9 @@ Run from the repo root with `PYTHONPATH=src`. Work files go in `runtime/work/<VI
 1. `python -m ytauto doctor` → stop and report if `ok` is false.
    `bash scripts/fetch_kokoro.sh` (offline fallback voice) and `python -m ytauto sync-library`
    (SFX/music libraries; procedural sound is used when empty).
-   Never push changes to the owner's approval Apps Script yourself (Claude's permission system
-   blocks it as undermining oversight). If apps_script/ changed, tell the owner to update it.
+   `python -m ytauto apps-script-check` — if the owner's approval Apps Script is older than this
+   repo, the approver is emailed once with what changed and how to update. Never push or edit the
+   deployed Apps Script yourself.
 2. `python -m ytauto reconcile` (marks scheduled videos public, moves files, optional promotion).
 3. `python -m ytauto audit --email` (daily views audit: trends, top/bottom videos, traffic sources,
    retention → concrete suggestions; emails the owner once a day) → pass its `guidance` and
@@ -116,4 +117,7 @@ pass JSON files between agents rather than long prose.
 ## Development
 - Tests: `python -m pytest -q` (all mocked; `-m "not slow"` skips real renders).
 - Keep `src/ytauto/approval/gate.py` and `apps_script/approval_watcher.gs` in sync.
+- Any change to apps_script/: bump `SCRIPT_VERSION` in approval_watcher.gs and add a short entry
+  (what changed, any new service/permission) at the top of apps_script/CHANGELOG.md. The owner
+  is emailed automatically; Claude never deploys it.
 - Update `docs/IMPLEMENTATION_STATUS.md` after meaningful changes.

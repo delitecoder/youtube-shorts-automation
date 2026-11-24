@@ -162,3 +162,13 @@ def test_budget_weekly_stop_alerts_once_per_day(tmp_path):
     ok = run(rt, "budget", "--five-hour", "0.1", "--five-reset", str(now + 3600),
              "--seven-day", "0.2", "--seven-reset", str(now + 4 * 86400), "--record", "start")
     assert ok["decision"] == "go_full"
+
+
+def test_apps_script_check_emails_once_per_version(tmp_path):
+    rt = tmp_path / "rt"
+    r = run(rt, "apps-script-check")
+    assert r["up_to_date"] is False and r["approver_emailed"]
+    run(rt, "apps-script-check")
+    state = json.loads((rt / "dry_run_state.json").read_text())
+    actions = [e for e in state["ErrorLog"] if e["severity"] == "ACTION"]
+    assert len(actions) == 1 and "How to update" in actions[0]["message"]
