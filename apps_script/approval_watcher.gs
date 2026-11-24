@@ -34,7 +34,7 @@ var keysCache_ = null;
 function keysFile_() {
   if (keysCache_ !== null) return keysCache_;
   keysCache_ = {};
-  var id = props_().getProperty('KEYS_FILE_ID');
+  var id = props_().getProperty('KEYS_FILE_ID') || findKeysFileId_();
   if (!id) return keysCache_;
   var f = DriveApp.getFileById(id);
   var access = f.getSharingAccess();
@@ -45,6 +45,21 @@ function keysFile_() {
   keysCache_ = JSON.parse(f.getBlob().getDataAsString());
   return keysCache_;
 }
+/** YouTubeAutomation/00_Config/keys.json in My Drive (exactly one match required). */
+function findKeysFileId_() {
+  var roots = DriveApp.getRootFolder().getFoldersByName('YouTubeAutomation');
+  if (!roots.hasNext()) return null;
+  var root = roots.next();
+  if (roots.hasNext()) throw new Error('More than one YouTubeAutomation folder in My Drive');
+  var cfg = root.getFoldersByName('00_Config');
+  if (!cfg.hasNext()) return null;
+  var files = cfg.next().getFilesByName('keys.json');
+  if (!files.hasNext()) return null;
+  var id = files.next().getId();
+  if (files.hasNext()) throw new Error('More than one keys.json in 00_Config');
+  return id;
+}
+
 function prop_(k) {
   var v = props_().getProperty(k);
   if (!v && FROM_KEYS_FILE.indexOf(k) >= 0) v = keysFile_()[k];
@@ -56,8 +71,9 @@ function nowIso_() { return new Date().toISOString().replace(/\.\d{3}Z$/, '+00:0
 function setup() {
   ScriptApp.getProjectTriggers().forEach(function (t) { ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('run').timeBased().everyMinutes(5).create();
-  ['SPREADSHEET_ID', 'APPROVER_EMAIL', 'PUBLISHER_URL', 'WEBHOOK_SECRET'].forEach(prop_);
-  if (prop_('WEBHOOK_SECRET').length < 32) throw new Error('WEBHOOK_SECRET too short');
+  ['SPREADSHEET_ID', 'APPROVER_EMAIL'].forEach(prop_);   // publisher settings are only needed later
+  var ws = props_().getProperty('WEBHOOK_SECRET');
+  if (ws && ws.length < 32) throw new Error('WEBHOOK_SECRET too short');
   // Ledger cells must stay plain text (no automatic date/number conversion).
   SpreadsheetApp.openById(prop_('SPREADSHEET_ID')).getSheets().forEach(function (sh) {
     sh.getRange(1, 1, sh.getMaxRows(), sh.getMaxColumns()).setNumberFormat('@');
@@ -293,7 +309,8 @@ function hex_(bytes) { return bytes.map(function (b) { return ('0' + (b & 0xff).
 function callPublisher_(ss) {
   var dry = props_().getProperty('DRY_RUN') || String(keysFile_().DRY_RUN || 'true');
   if (dry !== 'false') return;  // never call the publisher in dry run
-  var url = prop_('PUBLISHER_URL'), secret = prop_('WEBHOOK_SECRET');
+  var url = prop_('PUBLISHER_URL'), secret = props_().getProperty('WEBHOOK_SECRET');
+  if (!secret || secret.length < 32) throw new Error('Set Script Property WEBHOOK_SECRET (>= 32 chars) before DRY_RUN=false');
   table_(ss, 'VideoQueue').rows.forEach(function (r) {
     if (r.state !== 'APPROVED' || r.webhook_status === 'done') return;
     var body = JSON.stringify({ video_id: r.video_id });

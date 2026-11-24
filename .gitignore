@@ -21,3 +21,5 @@ publisher-env.yaml
 *.onnx
 *.bin
 yolov8*.pt
+pipeline_token.json
+publisher_token.json

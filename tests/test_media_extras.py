@@ -15,6 +15,7 @@ from ytauto.production.storyboard import validate_storyboard, with_outro
 from ytauto.research import images as im
 
 FIX = Path(__file__).parent / "fixtures"
+ROOT_DIR = Path(__file__).resolve().parents[1]
 
 
 # ------------------------------------------------------------------ TTS chain
@@ -281,3 +282,15 @@ def test_keys_loaded_into_env_without_overriding():
     rep = keysmod.load_into_env(svc, env)
     assert env["GOOGLE_TTS_API_KEY"] == "secret-value" and env["TTS_VOICE"] == "mine"
     assert rep["loaded"] == ["GOOGLE_TTS_API_KEY"] and "secret-value" not in json.dumps(rep)
+
+
+def test_bootstrap_keys_merge_keeps_owner_values():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("bootstrap", ROOT_DIR / "scripts" / "bootstrap.py")
+    bs = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bs)
+    ids = {"archive": "A1", "root": "R"}
+    m = bs.merge_keys({"GOOGLE_TTS_API_KEY": "k", "DRY_RUN": "", "SPREADSHEET_ID": "old"}, ids, "S2", " Me@Example.com ", "SCRIPT")
+    assert m["GOOGLE_TTS_API_KEY"] == "k" and m["DRY_RUN"] == "true" and m["SPREADSHEET_ID"] == "S2"
+    assert m["ARCHIVE_FOLDER_ID"] == "A1" and m["APPROVER_EMAIL"] == "me@example.com" and m["_apps_script_id"] == "SCRIPT"
+    assert bs.merge_keys({"DRY_RUN": "false"}, ids, "S", "")["DRY_RUN"] == "false"
