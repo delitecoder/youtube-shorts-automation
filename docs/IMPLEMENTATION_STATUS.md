@@ -43,8 +43,23 @@ _Last updated: 2026-11-24_
 - docs/SETUP.md step-by-step; daily scheduled task (10:07 IST) clones the public repo and stops
   early while setup is incomplete.
 
+## Added (round 5) — daily automatic flow
+- HyperFrames renderer (Apache-2.0; HTML/GSAP → MP4, headless Chromium) is the default engine with
+  the Pillow renderer as automatic fallback; verified live (62 s video, all QC checks, ~3.5 min).
+- Apps Script is now the uploader (no Cloud Run/billing): HTML approval email with poster + Drive
+  button, approver gets Drive access if not the owner, replies APPROVED/REJECTED (YES/NO still ok),
+  deadline = earlier of 24 h and slot − 15 min, upload uses only the script's own snapshot of what
+  was approved (Script Properties), re-checks the Gmail reply + SHA-256, uploads private with
+  publishAt 19:30 IST, moves the file to Archive, emails "✅ Short uploaded". Flags UPLOAD_ENABLED /
+  PUBLICATION_ENABLED live only in Script Properties. Cloud Run publisher remains optional
+  (UPLOADER=cloud_run).
+- Resume across sessions: checkpoint after each step → Drive 02_Generated/<id>_work.zip; discover
+  returns `resume`; 13:37 IST catch-up scheduled task (plus 10:07 daily). Both run on Opus.
+- SEO metadata rules enforced (title ≤ 70, 3–5 hashtags incl. #Shorts, 8–15 tags, category 28/27).
+- YouTube audit not required to publish (lifted 2026-11-02 per API revision history).
+
 ## Test results
-`python -m pytest -q` → 128 passed (real renders, real Kokoro synthesis, Apps Script parity).
+`python -m pytest -q` → 140 passed (real renders, real Kokoro synthesis, Apps Script parity).
 Mutation check: removing the SENT-label check, request-time check, or checksum check makes tests fail.
 
 ## Verified with the owner's accounts (2026-11-24)
@@ -67,6 +82,11 @@ Mutation check: removing the SENT-label check, request-time check, or checksum c
 2. Google Cloud setup + tokens (docs/deployment.md §1–3). No YouTube audit needed (lifted 2026-11-02).
 3. Decide on billing (TTS + Cloud Run) or the zero-billing fallback (docs/costs.md).
 
-## Next action
+## Next action (previous)
 First full dry-run production in the cloud → then Phase 2 when the owner sets keys.json DRY_RUN=false
 (real approval emails, uploads still disabled). Apps Script trigger not verifiable from here.
+
+## Next action
+Owner updates the Apps Script (new code + YouTube service), runs setup, sets Script Properties
+UPLOAD_ENABLED=true and PUBLICATION_ENABLED=true. VIDEO-20261124-001 was requested by the old
+script (no snapshot) so it will not auto-upload; the first automatic upload is the next daily video.
