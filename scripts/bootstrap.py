@@ -61,12 +61,32 @@ def merge_keys(existing: dict, ids: dict, spreadsheet_id: str, approver: str, sc
     return out
 
 
+def script_files() -> list[dict]:
+    return [{"name": "Code", "type": "SERVER_JS",
+             "source": (ROOT / "apps_script" / "approval_watcher.gs").read_text()},
+            {"name": "appsscript", "type": "JSON",
+             "source": (ROOT / "apps_script" / "appsscript.json").read_text()}]
+
+
+def push_script_only(client_secret: str, script_id: str) -> int:
+    from googleapiclient.discovery import build
+    print("Updating the Apps Script code (browser opens; click Allow)…")
+    svc = build("script", "v1", credentials=login(client_secret, SCRIPT_SCOPES), cache_discovery=False)
+    svc.projects().updateContent(scriptId=script_id, body={"files": script_files()}).execute()
+    print(f"Done. Open https://script.google.com/d/{script_id}/edit and run 'setup' once more.")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--client-secret", required=True, help="OAuth Desktop client JSON from Google Cloud")
     ap.add_argument("--approver", required=True, help="Gmail address that approves videos")
     ap.add_argument("--skip-apps-script", action="store_true")
+    ap.add_argument("--apps-script-only", metavar="SCRIPT_ID",
+                    help="only push the latest approval_watcher.gs to this existing script (one Allow)")
     a = ap.parse_args()
+    if a.apps_script_only:
+        return push_script_only(a.client_secret, a.apps_script_only)
 
     cs = json.loads(Path(a.client_secret).read_text())
     project = (cs.get("installed") or cs.get("web") or {}).get("project_id", "")
@@ -112,13 +132,7 @@ def main() -> int:
         try:
             if not script_id:
                 script_id = svc.projects().create(body={"title": "YouTube Shorts Approval Watcher"}).execute()["scriptId"]
-            files = [
-                {"name": "Code", "type": "SERVER_JS",
-                 "source": (ROOT / "apps_script" / "approval_watcher.gs").read_text()},
-                {"name": "appsscript", "type": "JSON",
-                 "source": (ROOT / "apps_script" / "appsscript.json").read_text()},
-            ]
-            svc.projects().updateContent(scriptId=script_id, body={"files": files}).execute()
+            svc.projects().updateContent(scriptId=script_id, body={"files": script_files()}).execute()
         except Exception as e:  # noqa: BLE001
             print(f"  Could not create the script automatically ({str(e)[:160]}).")
             print("  Turn on 'Google Apps Script API' at https://script.google.com/home/usersettings and rerun,")
