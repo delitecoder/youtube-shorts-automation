@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from ..config import RUNTIME_DIR
+from ..config import RUNTIME_DIR, theme_for
 from ..integrations.drive import sha256_file
 from ..integrations.google_auth import MissingCredentials
 from ..production import storyboard as sbmod
@@ -123,9 +123,11 @@ def cmd_discover(ctx: Ctx, a) -> int:
     except (MissingCredentials, RuntimeError) as e:
         if not ctx.s.dry_run:
             raise
-        out({"action": "research", "note": f"Drive unavailable in dry run: {e}"})
+        out({"action": "research", "note": f"Drive unavailable in dry run: {e}",
+             "theme": theme_for(_today_local(ctx))})
         return 0
-    out({"action": "research", "note": "no unprocessed Drive items"})
+    out({"action": "research", "note": "no unprocessed Drive items",
+         "theme": theme_for(_today_local(ctx))})
     return 0
 
 

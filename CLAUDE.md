@@ -83,8 +83,11 @@ Run from the repo root with `PYTHONPATH=src`. Work files go in `runtime/work/<VI
      **quality-reviewer** writes `review.json` → `python -m ytauto submit --video-id … --metadata … --review …`.
    - `document`: `python -m ytauto new-item --source-file-id <id>` →
      `python -m ytauto doc-text --file-id <id>` → continue with step 5 (source_type drive_document).
-   - `research`: `python -m ytauto new-item` → step 5.
-5. **researcher** (haiku) → `research.json` (give it ResearchHistory topic_keys to avoid) →
+   - `research`: `python -m ytauto new-item` → step 5. The output's `theme` is today's content
+     theme (weekday rotation in IST, `CONTENT_ROTATION` in src/ytauto/config.py: Mon/Fri trending
+     tech searches, Tue/Sat tech story, Wed/Sun tech news, Thu tech motivation). Pass it to the
+     researcher and storywriter.
+5. **researcher** (haiku) → `research.json` (give it the day's `theme` and ResearchHistory topic_keys to avoid) →
    `python -m ytauto record-research --video-id … --file research.json` (fix and retry once on errors).
    After EVERY step from here on: `python -m ytauto checkpoint --video-id …` (saves work to Drive so
    the next session can continue if this one stops).

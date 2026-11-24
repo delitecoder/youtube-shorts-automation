@@ -2,6 +2,14 @@
 
 The owner updates the script; Claude never pushes it. Newest first. Each entry = one SCRIPT_VERSION.
 
+## 2026.11.24-2
+- Approval email can show one-click **Approve / Reject** buttons. They open a small web app
+  (`apps_script/approval_buttons.gs`, a separate project owned by the approver) that sends the
+  normal one-line reply from the approver's Gmail; all existing reply checks still apply.
+- New optional Script Property `APPROVAL_BUTTONS_URL` (the buttons web app `/exec` URL). Without it
+  the email is unchanged. Setup steps are at the top of `approval_buttons.gs`.
+- No new service or permission for this project (the buttons project needs Gmail only).
+
 ## 2026.11.24-1
 - Uploads approved videos itself (no Cloud Run needed), scheduled for the evening peak slot.
 - Neat HTML approval email (poster, Drive preview button); reply `APPROVED VIDEO-…` / `REJECTED VIDEO-…`.

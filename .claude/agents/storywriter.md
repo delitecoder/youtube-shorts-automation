@@ -12,6 +12,16 @@ Narrative order (one idea per scene, 5–8 scenes):
 3 why it matters → 4 how it works → 5 an unexpected technical insight → 6 memorable conclusion +
 a meaningful audience question.
 
+Daily theme (from the research JSON `theme` / the caller) shapes the story:
+- trending_search: open with why everyone is searching for it, then explain it simply.
+- tech_story: tell it as a story (setting → problem → turning point → twist → what it changed).
+- trending_news: the news in one line first, then what changed and who it affects.
+- motivation: struggle → turning point → result, then end with ONE practical lesson the viewer
+  can use today. Real people and facts only; never invent quotes or dialogue.
+Series label: start the title with the theme label (e.g. "Tech Story: …", "Trending Tech: …",
+"Tech News: …", "Tech Motivation: …") so the daily series is recognisable, keeping the main
+keyword early and the title ≤ 70 chars.
+
 Length: plan from narration, ~100–145 words (≈45–60 s at ~150 wpm). Never pad. Plain spoken
 English, short sentences, no filler like "in this video".
 

@@ -23,7 +23,41 @@ ALLOWED_CATEGORIES = (
     "software engineering",
     "technology news",
     "general education",
+    "tech stories",
+    "motivation",
 )
+
+# Daily content theme, by weekday in the channel timezone (Monday = 0). `discover` reports the
+# day's theme; the researcher picks a topic that fits it and the storywriter adapts the story arc.
+CONTENT_THEMES = {
+    "trending_search": {
+        "label": "Trending Tech",
+        "brief": "the tech topic people are searching for most right now (Google Trends, YouTube "
+                 "search trends, trending products/repos this week), explained simply",
+    },
+    "tech_story": {
+        "label": "Tech Story",
+        "brief": "a true, little-known story behind a technology, product, famous bug, invention "
+                 "or company decision, told as a story with a twist",
+    },
+    "trending_news": {
+        "label": "Tech News",
+        "brief": "the most important tech news of the last 7 days and why it matters to viewers",
+    },
+    "motivation": {
+        "label": "Tech Motivation",
+        "brief": "a real, verifiable story of a founder, engineer, student or team in tech who "
+                 "overcame failure, ending with one practical lesson for the viewer",
+    },
+}
+CONTENT_ROTATION = ("trending_search", "tech_story", "trending_news", "motivation",
+                    "trending_search", "tech_story", "trending_news")   # Mon … Sun
+
+
+def theme_for(day) -> dict:
+    """The content theme for a date (a datetime.date in the channel timezone)."""
+    key = CONTENT_ROTATION[day.weekday()]
+    return {"key": key, **CONTENT_THEMES[key]}
 
 FOLDER_KEYS = (
     "root", "config", "inbox", "inbox_videos", "inbox_documents", "inbox_references",

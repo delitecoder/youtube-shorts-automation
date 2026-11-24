@@ -23,7 +23,7 @@
 
 // Bump on every change and add an entry to apps_script/CHANGELOG.md: the daily run compares this
 // with the deployed version and emails the approver when an update is needed.
-var SCRIPT_VERSION = '2026.11.24-1';
+var SCRIPT_VERSION = '2026.11.24-2';
 var TTL_HOURS = 24;
 var SLOT_MARGIN_MIN = 15;            // approvals must arrive this long before the publish slot
 var MAX_UPLOAD_BYTES = 45 * 1024 * 1024;   // Apps Script blob limit (generated Shorts are ~5 MB)
@@ -176,11 +176,15 @@ function sendRequests_(ss) {
         logError_(ss, r.video_id, 'apps_script', 'Could not share the video with the approver: ' + e, 'WARNING'); }
     }
     var deadline = deadline_(new Date().toISOString(), r.proposed_publish_at);
+    var buttons = props_().getProperty('APPROVAL_BUTTONS_URL') || '';   // approver's approval_buttons.gs web app
+    if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(buttons)) buttons = '';
     var subject = '🎬 Approve today\'s Short? ' + r.video_id + ' · ' + r.title;
     var plain = [
       'Video ' + r.video_id + ': ' + r.title, 'Preview (private Drive link): ' + r.preview_url,
       'Publishes: ' + ist_(r.proposed_publish_at) + ' if approved before ' + ist_(new Date(deadline).toISOString()),
       '', 'Reply with exactly one line:', '  APPROVED ' + r.video_id, '  REJECTED ' + r.video_id,
+      buttons ? 'Or use the buttons: approve ' + buttons + '?a=approve&v=' + r.video_id +
+                ' | reject ' + buttons + '?a=reject&v=' + r.video_id : '',
       'No reply = skipped (nothing is uploaded).'].join('\n');
     var poster = null;
     if (qr.poster_file_id) { try { poster = DriveApp.getFileById(qr.poster_file_id).getBlob().setName('poster.jpg'); } catch (e) {} }
@@ -208,7 +212,14 @@ function sendRequests_(ss) {
       (imgs ? '<p style="margin:14px 0 4px"><b>Images</b></p><ul style="font-size:13px;padding-left:18px">' + imgs + '</ul>' : '') +
       (refsHtml ? '<p style="margin:14px 0 4px"><b>Sources</b></p><ul style="font-size:13px;padding-left:18px">' + refsHtml + '</ul>' : '') +
       '<div style="background:#ecfdf3;border:1px solid #a6f4c5;border-radius:12px;padding:14px 16px;margin-top:16px">' +
-      '<b>Reply to this email with exactly one line:</b><br>' +
+      (buttons ? '<p style="margin:0 0 12px">' +
+        '<a href="' + esc_(buttons + '?a=approve&v=' + r.video_id) + '" style="background:#16a34a;color:#fff;padding:12px 22px;' +
+        'border-radius:10px;text-decoration:none;font-weight:bold;display:inline-block;margin:0 8px 8px 0">✔ Approve</a>' +
+        '<a href="' + esc_(buttons + '?a=reject&v=' + r.video_id) + '" style="background:#dc2626;color:#fff;padding:12px 22px;' +
+        'border-radius:10px;text-decoration:none;font-weight:bold;display:inline-block;margin:0 0 8px 0">✖ Reject</a><br>' +
+        '<span style="color:#555;font-size:13px">A button sends the reply below for you from your Gmail.</span></p>' +
+        '<b>Or reply to this email with exactly one line:</b><br>'
+        : '<b>Reply to this email with exactly one line:</b><br>') +
       '<code style="font-size:16px">APPROVED ' + esc_(r.video_id) + '</code> &nbsp;to upload &amp; schedule<br>' +
       '<code style="font-size:16px">REJECTED ' + esc_(r.video_id) + '</code> &nbsp;to skip<br>' +
       '<span style="color:#555;font-size:13px">Approve before <b>' + ist_(new Date(deadline).toISOString()) +

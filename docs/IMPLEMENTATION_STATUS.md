@@ -15,6 +15,15 @@ _Last updated: 2026-11-24_
   automatic QC. Existing-video eligibility (rights declaration, ≤ 3 min, square/vertical, decode check).
 - CLI (`python -m ytauto …`), 4 subagents, CLAUDE.md daily workflow, docs.
 
+## Added (2026-11-24: themes + approval buttons)
+- Daily content theme rotation (`CONTENT_ROTATION`/`theme_for` in config.py, IST weekday):
+  Mon/Fri trending tech searches, Tue/Sat tech story, Wed/Sun tech news, Thu tech motivation.
+  `discover` returns `theme`; researcher/storywriter follow it (series title prefix). New
+  categories "tech stories" and "motivation". Tests: tests/test_themes.py.
+- One-click Approve/Reject buttons in the approval email (Apps Script 2026.11.24-2): optional
+  `APPROVAL_BUTTONS_URL` → approver-owned web app `apps_script/approval_buttons.gs` that sends the
+  normal one-line reply from the approver's Gmail. Gate rules unchanged (gate.py untouched).
+
 ## Added (round 2)
 - Voice fallback chain: Google → Kokoro-82M (offline, tested for real here, ~real-time) → Piper;
   Edge TTS opt-in only. One voice per video; budget exhaustion falls back instead of failing.
