@@ -64,6 +64,8 @@ Run from the repo root with `PYTHONPATH=src`. Work files go in `runtime/work/<VI
 1. `python -m ytauto doctor` → stop and report if `ok` is false.
    `bash scripts/fetch_kokoro.sh` (offline fallback voice) and `python -m ytauto sync-library`
    (SFX/music libraries; procedural sound is used when empty).
+   `python scripts/push_apps_script.py --if-changed` (keeps the owner's approval Apps Script in sync
+   with this repo; does nothing without the owner-granted YTA_SCRIPT_OAUTH).
 2. `python -m ytauto reconcile` (marks scheduled videos public, moves files, optional promotion).
 3. `python -m ytauto audit --email` (daily views audit: trends, top/bottom videos, traffic sources,
    retention → concrete suggestions; emails the owner once a day) → pass its `guidance` and
