@@ -24,6 +24,12 @@ PROFILES: dict[str, dict] = {
             "https://www.googleapis.com/auth/yt-analytics.readonly",
         ],
     },
+    # OPTIONAL and owner-granted only: lets Claude push approval_watcher.gs updates. Anyone holding
+    # this token can change the upload/approval code, so it weakens the approval boundary.
+    "script_admin": {
+        "env": "YTA_SCRIPT_OAUTH",
+        "scopes": ["https://www.googleapis.com/auth/script.projects"],
+    },
     "publisher": {
         "env": "YTA_PUBLISHER_OAUTH",
         "scopes": [
