@@ -11,7 +11,8 @@ Read `docs/IMPLEMENTATION_STATUS.md` first when resuming development work.
 - Never print, log, email or commit secrets. Never ask the user to paste credentials into chat.
 - Existing Drive videos are never edited, converted or re-encoded.
 - Per day: one Short (10:07 IST run, `discover`) and one long-form video (03:47 IST run,
-  `discover --format long`). Never more of either. Stop when `discover` says `"action": "none"`.
+  `discover --format long`), each ALSO made in Tamil from the same English video (owner, 2026-11-25):
+  at most 2 Shorts + 2 long videos per day. Stop when `discover` says `"action": "none"`.
 - Use Python commands for deterministic work; use subagents only for research, writing and review.
 
 ## Model routing (keep token use minimal)
@@ -21,6 +22,7 @@ Read `docs/IMPLEMENTATION_STATUS.md` first when resuming development work.
 | researcher, quality-reviewer | **Haiku** | research JSON, fact/quality checks |
 | storywriter, code-engineer | **Sonnet** | scripts/metadata, code fixes |
 | scene-coder ("camera man") | **Sonnet** | writes HTML+GSAP for `custom` scenes from the director's brief |
+| translator | **Opus** | Tamil version of each finished video (most accurate model for Tamil) |
 | advisor | **Fable** | only for genuinely hard decisions; ≤ 120-word answers; at most once per run |
 Images are described and checked by local vision models (OmniVision → SmolVLM → Google Vision → CLIP+YOLOv8);
 Claude reads only the compact JSON summary (`kw`, `flags`, `rel`), never the image or the full description.
@@ -68,7 +70,8 @@ Run from the repo root with `PYTHONPATH=src`. Always install with `python -m pip
 belong to a different Python than `python` in fresh containers). Work files go in `runtime/work/<VIDEO_ID>/`.
 
 1. `python -m ytauto doctor` → stop and report if `ok` is false.
-   `bash scripts/fetch_kokoro.sh` (offline fallback voice) and `python -m ytauto sync-library`
+   `bash scripts/fetch_kokoro.sh` (offline fallback voice), `bash scripts/install_fonts.sh`
+   (Noto Sans Tamil for Tamil videos) and `python -m ytauto sync-library`
    (SFX/music libraries; procedural sound is used when empty; also caches the DeliteCoder logo
    badge from Drive `References/Images/brand_logo.png`, shown in every video).
    `python -m ytauto apps-script-check` — if the owner's approval Apps Script is older than this
@@ -137,6 +140,17 @@ belong to a different Python than `python` in fresh containers). Work files go i
    replies `APPROVED VIDEO-…` before the evening slot (19:30 IST − 15 min) and the Apps Script uploads
    it scheduled for 19:30 IST; no reply = skipped. Uploading never needs Claude. After a successful upload the
    video file is moved to the Drive `Archive` folder (Apps Script; `reconcile` repeats it if needed).
+9b. Tamil version (same run, right after the English submit; `discover` also returns
+   `"action": "localize"` if a run stopped before it): **translator** (Opus) reads the English
+   storyboard.json + metadata.json and writes storyboard.ta.json + metadata.ta.json (same visuals,
+   natural spoken Tamil with English tech words) →
+   `python -m ytauto localize --video-id <English id> --storyboard storyboard.ta.json --metadata metadata.ta.json`
+   (new id: Short 051–099 / long 151–199; copies assets and custom scenes) → `voice` (Tamil
+   Chirp 3 HD Charon, same narrator; WaveNet Tamil fallback, both free tiers) → `render` →
+   `frames` (check Tamil text renders, nothing overflows; shorten text in the storyboard if it
+   does) → `submit` (Tamil Short 21:00 IST, Tamil long 18:30 IST). Skip the quality-reviewer for the
+   translation (facts are unchanged); the approver approves it separately.
+   If usage is short (`go_lean`/`wait`), the English video always comes first.
 10. Optionally: storywriter writes Reddit drafts JSON → `python -m ytauto reddit-drafts …`
     (drafts only; never post).
 
@@ -159,6 +173,7 @@ Same steps, rules and approval gate as the Short, with these differences:
   (`LONG_PUBLISH_TIME`). The Apps Script uploads files > 45 MB in resumable 32 MB chunks.
 - Budget: if `budget` says go_lean, still make the video but use 4–6 custom scenes and one review.
 - Thumbnails are not set by the API here; YouTube picks a frame (the hook frame is designed for it).
+- Then the Tamil long version (step 9b; long ids 151–199, slot 18:30 IST).
 
 ## Development
 - Tests: `python -m pytest -q` (all mocked; `-m "not slow"` skips real renders).

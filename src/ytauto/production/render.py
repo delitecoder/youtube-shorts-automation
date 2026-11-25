@@ -273,8 +273,10 @@ def render(storyboard: dict, scene_audio: list[Path], workdir: Path, out_mp4: Pa
     workdir.mkdir(parents=True, exist_ok=True)
     storyboard = normalize(storyboard)
     long_ = storyboard.get("format") == "long"
-    if long_ and engine == "pillow":
-        raise RuntimeError("long-form videos need the HyperFrames engine")
+    # Pillow cannot shape Tamil script and has no 16:9 layout: those need HyperFrames
+    hf_only = long_ or storyboard.get("language", "en") != "en"
+    if hf_only and engine == "pillow":
+        raise RuntimeError("long-form and Tamil videos need the HyperFrames engine")
     scenes = storyboard["scenes"]
     images = {}
     for s in scenes:
@@ -317,7 +319,7 @@ def render(storyboard: dict, scene_audio: list[Path], workdir: Path, out_mp4: Pa
             fallback_reason = f"hyperframes QC failed: {report['checks']}"
         except Exception as ex:  # noqa: BLE001 - fall back to the Pillow renderer
             fallback_reason = f"hyperframes: {str(ex)[:300]}"
-        if engine == "hyperframes" or long_:       # the Pillow renderer is vertical-only
+        if engine == "hyperframes" or hf_only:     # Pillow: vertical English only
             raise RuntimeError(fallback_reason)
     else:
         fallback_reason = ""

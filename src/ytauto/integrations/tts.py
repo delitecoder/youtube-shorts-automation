@@ -38,12 +38,12 @@ class ProviderUnavailable(RuntimeError):
 
 
 class TTSBudget:
-    def __init__(self, store, monthly_limit: int):
-        self.store, self.limit = store, monthly_limit
+    def __init__(self, store, monthly_limit: int, sku: str = ""):
+        self.store, self.limit, self.sku = store, monthly_limit, sku
 
     @property
-    def key(self) -> str:
-        return f"tts_chars_{utcnow():%Y-%m}"
+    def key(self) -> str:                 # one counter per free-tier SKU (Chirp 3 HD / WaveNet)
+        return f"tts_chars_{self.sku + '_' if self.sku else ''}{utcnow():%Y-%m}"
 
     def used(self) -> int:
         return int(self.store.get_config(self.key, "0") or 0)
@@ -180,6 +180,10 @@ def build_provider(name: str, settings, store):
     if name == "google":
         return GoogleTTS(settings.tts_voice, settings.tts_language,
                          TTSBudget(store, settings.tts_monthly_char_budget))
+    if name == "google_wavenet":          # Tamil fallback: separate 4M/month free tier
+        from ..config import WAVENET_FREE_TIER_CAP
+        return GoogleTTS(settings.tts_fallback_voice_ta, "ta-IN",
+                         TTSBudget(store, WAVENET_FREE_TIER_CAP, sku="wavenet"))
     if name == "kokoro":
         return KokoroTTS(settings.kokoro_voice)
     if name == "edge":
@@ -203,6 +207,16 @@ def _cache_path(outdir: Path, prov, name: str, text: str) -> Path:
     voice = getattr(prov, "voice", "") or ""
     h = hashlib.sha256(f"{name}|{voice}|{text}".encode()).hexdigest()[:20]
     return outdir / "voice_cache" / f"{name}_{h}.wav"
+
+
+def for_language(settings, lang: str):
+    """Settings for voicing a video in `lang`: Tamil uses the Tamil Chirp 3 HD voice (same narrator),
+    then the Tamil WaveNet voice; English-only engines (Kokoro, Piper) are never used for Tamil."""
+    import dataclasses
+    if lang != "ta":
+        return settings
+    return dataclasses.replace(settings, tts_provider="google", tts_voice=settings.tts_voice_ta,
+                               tts_language="ta-IN", tts_fallbacks=("google_wavenet",))
 
 
 def synthesize_all(texts: list[str], outdir: Path, settings, store, log=print) -> tuple[list[Path], str, list[str]]:

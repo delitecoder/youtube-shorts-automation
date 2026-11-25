@@ -21,7 +21,7 @@ class MemStore:
 
 def test_budget_never_exceeds_free_tier():
     assert Settings.from_env({"TTS_MONTHLY_CHAR_BUDGET": "5000000"}).tts_monthly_char_budget == TTS_FREE_TIER_CAP
-    assert Settings.from_env({}).tts_monthly_char_budget == 600_000
+    assert Settings.from_env({}).tts_monthly_char_budget == 850_000
     assert TTS_FREE_TIER_CAP < 1_000_000
 
 

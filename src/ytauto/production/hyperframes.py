@@ -195,7 +195,7 @@ def _visual(i: int, v: dict, t0: float, dur: float, accent: str, images: dict) -
 
 CSS = """
 html,body{margin:0;background:#0a0e20}
-#stage{position:relative;width:1080px;height:1920px;overflow:hidden;font-family:'DejaVu Sans','Inter',sans-serif;
+#stage{position:relative;width:1080px;height:1920px;overflow:hidden;font-family:'DejaVu Sans','Noto Sans Tamil','Inter',sans-serif;
  background:radial-gradient(1200px 900px at 20% 10%,#1d2a5c 0%,transparent 60%),radial-gradient(900px 900px at 90% 80%,#3a1747 0%,transparent 60%),linear-gradient(#0a0e20,#151030);}
 .grid{position:absolute;inset:-60px;background-image:radial-gradient(#2a3463 2px,transparent 2px);background-size:60px 60px;opacity:.55}
 .particle{position:absolute;width:10px;height:10px;border-radius:50%;filter:blur(1px);opacity:.5}

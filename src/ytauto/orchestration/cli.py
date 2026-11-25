@@ -24,7 +24,7 @@ from ..production.source_video import assess
 from ..publishing.schedule import free_slot, next_slot, rfc3339
 from ..research.validate import validate_research
 from ..state import ACTIVE_STATES, State, VideoRecord, iso, parse_iso, utcnow
-from ..store import is_long, log_error, next_video_id
+from ..store import is_long, language_of, log_error, next_video_id
 from .context import Ctx
 
 WORK = RUNTIME_DIR / "work"
@@ -148,6 +148,10 @@ def cmd_discover(ctx: Ctx, a) -> int:
              "next": "python -m ytauto restore --video-id " + r.video_id})
         return 0
     today = _today_local(ctx).strftime("%Y%m%d")
+    loc = _needs_localize(ctx, recs, today)
+    if loc:
+        out(loc)
+        return 0
     waiting_today = [r.video_id for r in recs if r.state == State.AWAITING_APPROVAL and r.video_id.startswith(f"VIDEO-{today}-")]
     if waiting_today:
         out({"action": "none", "reason": f"today's video is waiting for approval: {waiting_today}"})
@@ -179,6 +183,23 @@ def cmd_discover(ctx: Ctx, a) -> int:
     return 0
 
 
+DONE_ENGLISH = {State.AWAITING_APPROVAL, State.APPROVED, State.UPLOADING, State.SCHEDULED, State.PUBLISHED}
+
+
+def _needs_localize(ctx: Ctx, recs: list, today: str) -> dict | None:
+    """Today's submitted English video still needs its Tamil version."""
+    if "ta" not in ctx.s.video_languages:
+        return None
+    for r in sorted(recs, key=lambda x: x.video_id):
+        if (r.video_id.startswith(f"VIDEO-{today}-") and language_of(r.video_id) == "en"
+                and r.state in DONE_ENGLISH and r.source_type == "GENERATED"
+                and not any((o.notes or "").startswith(f"ta version of {r.video_id}") for o in recs)):
+            return {"action": "localize", "lang": "ta", "video_id": r.video_id,
+                    "next": "translator agent → storyboard.ta.json + metadata.ta.json, then "
+                            f"python -m ytauto localize --video-id {r.video_id} --storyboard … --metadata …"}
+    return None
+
+
 def _discover_long(ctx: Ctx, a) -> int:
     recs = [r for r in ctx.store.all() if is_long(r.video_id)]
     resumable = [r for r in recs if r.state in PIPELINE_STATES]
@@ -188,6 +209,10 @@ def _discover_long(ctx: Ctx, a) -> int:
              "next": "python -m ytauto restore --video-id " + r.video_id})
         return 0
     today = _today_local(ctx).strftime("%Y%m%d")
+    loc = _needs_localize(ctx, recs, today)
+    if loc:
+        out(dict(loc, format="long"))
+        return 0
     if any(r.video_id.startswith(f"VIDEO-{today}-") for r in recs) and not a.force:
         out({"action": "none", "format": "long", "reason": "already produced today's long video"})
         return 0
@@ -311,14 +336,16 @@ def cmd_render(ctx: Ctx, a) -> int:
         rec = ctx.store.transition(rec.video_id, rec.state, State.GENERATING, rec.version)
     wd.mkdir(parents=True, exist_ok=True)
     long_ = sbmod.is_long(sb)
-    if long_ != is_long(rec.video_id):
-        out({"ok": False, "error": "storyboard format does not match the video id (long ids are -101…-199)"})
+    lang = sb.get("language", "en")
+    if long_ != is_long(rec.video_id) or lang != language_of(rec.video_id):
+        out({"ok": False, "error": "storyboard format/language does not match the video id "
+             "(Short en 001–050, ta 051–099; long en 101–150, ta 151–199)"})
         return 2
-    outro = ctx.s.long_outro_text if long_ else ctx.s.outro_text
-    full = sbmod.with_outro(sb, outro) if ctx.s.outro_enabled else sb
+    full = sbmod.with_outro(sb, ctx.s.outro_for(long_, lang)) if ctx.s.outro_enabled else sb
     texts = [s["narration"] for s in full["scenes"]]
+    from ..integrations.tts import for_language
     try:
-        clips, provider, fallbacks = synthesize_all(texts, wd, ctx.s, ctx.store,
+        clips, provider, fallbacks = synthesize_all(texts, wd, for_language(ctx.s, lang), ctx.store,
                                                     log=lambda m: print(m, file=sys.stderr))
         report = render(full, clips, wd, wd / f"{rec.video_id}.mp4", music=ctx.s.music_enabled,
                         sfx=ctx.s.sfx_enabled, sfx_dir=LIBRARY / "sfx", music_dir=LIBRARY / "music",
@@ -352,17 +379,68 @@ def cmd_voice(ctx: Ctx, a) -> int:
     rec = ctx.store.get(a.video_id)
     wd = WORK / rec.video_id
     wd.mkdir(parents=True, exist_ok=True)
+    from ..integrations.tts import for_language
     long_ = sbmod.is_long(sb)
-    full = sbmod.with_outro(sb, ctx.s.long_outro_text if long_ else ctx.s.outro_text) if ctx.s.outro_enabled else sb
+    lang = sb.get("language", "en")
+    if lang != language_of(rec.video_id):
+        out({"ok": False, "error": f"storyboard language {lang} does not match {rec.video_id}"})
+        return 2
+    full = sbmod.with_outro(sb, ctx.s.outro_for(long_, lang)) if ctx.s.outro_enabled else sb
     texts = [s["narration"] for s in full["scenes"]]
     budget = TTSBudget(ctx.store, ctx.s.tts_monthly_char_budget)
     before = budget.used()
-    clips, provider, fallbacks = synthesize_all(texts, wd, ctx.s, ctx.store, log=lambda m: print(m, file=sys.stderr))
+    clips, provider, fallbacks = synthesize_all(texts, wd, for_language(ctx.s, lang), ctx.store,
+                                                log=lambda m: print(m, file=sys.stderr))
     used = budget.used()
-    out({"ok": True, "voice": provider, "fallbacks": fallbacks, "clips": len(clips),
+    out({"ok": True, "language": lang, "voice": provider, "fallbacks": fallbacks, "clips": len(clips),
          "video_chars": sum(len(clean_text(t)) for t in texts), "chars_billed_now": used - before,
          "month_used": used, "month_limit": ctx.s.tts_monthly_char_budget,
          "google_free_tier": 1_000_000})
+    return 0
+
+
+def cmd_localize(ctx: Ctx, a) -> int:
+    """Make the Tamil (or other language) version of a finished English video: a new item with
+    its own id, the same visuals/assets/custom scenes, the translated storyboard (and metadata)
+    written by the translator agent. Then: voice → render → frames → submit as usual."""
+    src = ctx.store.get(a.video_id)
+    if language_of(src.video_id) != "en":
+        out({"ok": False, "error": "localize starts from the English video"})
+        return 2
+    sb = load_json(a.storyboard)
+    long_ = is_long(src.video_id)
+    if sbmod.is_long(sb) != long_:
+        out({"ok": False, "error": "translated storyboard must keep the original format"})
+        return 2
+    existing = [r for r in ctx.store.all() if (r.notes or "").startswith(f"{a.lang} version of {src.video_id}")]
+    if existing:
+        rec = existing[0]
+    else:
+        vid = next_video_id([r.video_id for r in ctx.store.all()], utcnow(), ctx.s.timezone, long=long_, lang=a.lang)
+        rec = ctx.store.create(VideoRecord(video_id=vid, source_type="GENERATED",
+                                           notes=f"{a.lang} version of {src.video_id}"))
+    sb = dict(sb, video_id=rec.video_id, language=a.lang)
+    errs, warns = sbmod.validate_storyboard(sb)
+    if errs:
+        out({"ok": False, "video_id": rec.video_id, "errors": errs, "warnings": warns})
+        return 2
+    src_wd, wd = WORK / src.video_id, WORK / rec.video_id
+    wd.mkdir(parents=True, exist_ok=True)
+    for sub_ in ("assets", "scenes"):
+        if (src_wd / sub_).exists():
+            shutil.copytree(src_wd / sub_, wd / sub_, dirs_exist_ok=True)
+    for f in ("image_credits.json", "research.json"):
+        if (src_wd / f).exists():
+            shutil.copy(src_wd / f, wd / f)
+    (wd / "storyboard.json").write_text(json.dumps(sb, ensure_ascii=False, indent=1), encoding="utf-8")
+    if a.metadata:
+        shutil.copy(a.metadata, wd / "metadata.json")
+    if rec.state == State.DISCOVERED:
+        rec = ctx.store.transition(rec.video_id, State.DISCOVERED, State.RESEARCHING, rec.version,
+                                   references=src.references or json.dumps(sb.get("references", [])))
+    out({"ok": True, "video_id": rec.video_id, "language": a.lang, "from": src.video_id, "warnings": warns,
+         "storyboard": str(wd / "storyboard.json"),
+         "next": f"python -m ytauto voice --video-id {rec.video_id} --storyboard {wd / 'storyboard.json'}"})
     return 0
 
 
@@ -550,20 +628,25 @@ def cmd_submit(ctx: Ctx, a) -> int:
         return 2
     now = utcnow()
     taken = {r.proposed_publish_at for r in ctx.store.all()
-             if r.video_id != rec.video_id and r.proposed_publish_at and is_long(r.video_id) == long_ and r.state in
+             if r.video_id != rec.video_id and r.proposed_publish_at and is_long(r.video_id) == long_
+             and language_of(r.video_id) == language_of(rec.video_id) and r.state in
              (State.AWAITING_APPROVAL, State.APPROVED, State.UPLOADING, State.SCHEDULED)}
     try:
         slots = json.loads(ctx.store.get_config("publish_slots", "") or "{}").get("slots")
     except ValueError:
         slots = None
-    if long_:
+    lang = language_of(rec.video_id)
+    if lang == "ta":
+        slot = rfc3339(free_slot(now, taken, ctx.s.long_publish_time_ta if long_ else ctx.s.publish_time_ta,
+                                 ctx.s.timezone, ctx.s.min_lead_minutes))
+    elif long_:
         slot = rfc3339(free_slot(now, taken, ctx.s.long_publish_time, ctx.s.timezone, ctx.s.min_lead_minutes))
     else:
         slot = rfc3339(free_slot(now, taken, ctx.s.publish_time, ctx.s.timezone, ctx.s.min_lead_minutes,
                                  weekday_slots=slots))
     qr = json.loads(rec.quality_report or "{}") | {"review": review}
     qr["youtube"] = {"category_id": str(meta.get("category_id", "28")), "made_for_kids": False,
-                     "language": "en", "embeddable": True, "public_stats": True}
+                     "language": lang, "embeddable": True, "public_stats": True}
     cp = WORK / rec.video_id / "image_credits.json"
     if cp.exists():
         qr["images"] = [{k: e.get(k) for k in ("file", "creator", "license", "page_url", "requires_permission",
@@ -969,6 +1052,8 @@ def main(argv=None) -> int:
     p = sub.add_parser("submit"); p.add_argument("--video-id", required=True); p.add_argument("--metadata", required=True)
     p.add_argument("--review", required=True); p.add_argument("--video")
     p = sub.add_parser("voice"); p.add_argument("--video-id", required=True); p.add_argument("--storyboard", required=True)
+    p = sub.add_parser("localize"); p.add_argument("--video-id", required=True); p.add_argument("--storyboard", required=True)
+    p.add_argument("--lang", default="ta", choices=["ta"]); p.add_argument("--metadata")
     p = sub.add_parser("resolve-images"); p.add_argument("--storyboard", required=True)
     p = sub.add_parser("fetch-asset"); p.add_argument("--video-id", required=True); p.add_argument("--file-id", required=True)
     p.add_argument("--name", required=True)

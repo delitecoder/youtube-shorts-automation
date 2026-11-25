@@ -121,6 +121,16 @@ _Last updated: 2026-11-25_
 - YouTube Data API quota (checked 2026-11-25): videos.insert has its own bucket of 100 calls/day
   (1 unit each); 10,000 units/day for all other endpoints. We use 2 uploads/day.
 
+## Added (2026-11-25: Tamil versions)
+- Every video (Short + long) is also made in Tamil from the finished English video: translator
+  agent (Opus) → `localize` (ids Short 051–099, long 151–199; same assets/custom scenes) → voice
+  `ta-IN-Chirp3-HD-Charon` (same narrator; `ta-IN-Wavenet-B` fallback, own 4M free tier) → render
+  with Noto Sans Tamil (bundled, SIL OFL; `scripts/install_fonts.sh`) → submit (Tamil Short 21:00,
+  Tamil long 18:30 IST). `discover` returns `localize` if the Tamil version is still missing.
+- Voice budget default 850k chars/month (cap 900k < 1M free); Tamil caps 1,500 / 12,000 chars.
+- Apps Script 2026.11.25-3: language from the video (ta/en) on upload, "Tamil" in the approval
+  subject, skipped videos re-offered only for the same format + language.
+
 ## Test results
 `python -m pytest -q` → 140 passed (real renders, real Kokoro synthesis, Apps Script parity).
 Mutation check: removing the SENT-label check, request-time check, or checksum check makes tests fail.

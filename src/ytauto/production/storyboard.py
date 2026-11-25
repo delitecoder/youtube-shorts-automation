@@ -98,10 +98,13 @@ def with_outro(sb: dict, text: str) -> dict:
     """Append the standard subscribe end card (narration + animated button)."""
     out = dict(sb)
     vis = {"type": OUTRO_TYPE}
+    ta = sb.get("language") == "ta"
     if is_long(sb):
-        vis["text"] = "A new system-design breakdown every day"
+        vis["text"] = "தினமும் ஒரு புதிய System Design விளக்கம்" if ta else "A new system-design breakdown every day"
+    elif ta:
+        vis["text"] = "தினமும் ஒரு புதிய Tech செய்தி"
     out["scenes"] = list(sb["scenes"]) + [{
-        "narration": text, "on_screen_text": "Enjoyed this?", "transition": "fade",
+        "narration": text, "on_screen_text": "பிடித்திருந்ததா?" if ta else "Enjoyed this?", "transition": "fade",
         "visual": vis, "outro": True}]
     return out
 
@@ -113,7 +116,8 @@ def narration_chars(sb: dict) -> int:
 
 def _char_check(sb: dict, e: list[str], fmt: str) -> None:
     from ..config import NARRATION_CHAR_LIMIT
-    n, lim = narration_chars(sb), NARRATION_CHAR_LIMIT[fmt]
+    key = fmt + ("_ta" if sb.get("language") == "ta" else "")
+    n, lim = narration_chars(sb), NARRATION_CHAR_LIMIT[key]
     if n > lim:
         e.append(f"narration is {n} characters; keep it ≤ {lim} so the voice stays in the free tier")
 

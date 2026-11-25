@@ -161,7 +161,13 @@ def _dry(v: str | None) -> bool:
 
 
 TTS_FREE_TIER_CAP = 900_000   # Chirp 3 HD: first 1,000,000 characters/month free (pricing page, 2026-11)
-NARRATION_CHAR_LIMIT = {"short": 1_000, "long": 8_000}   # per video, spaces included
+WAVENET_FREE_TIER_CAP = 3_600_000   # WaveNet (Tamil fallback voice): 4,000,000 free/month, separate SKU
+NARRATION_CHAR_LIMIT = {"short": 1_000, "long": 8_000,          # English, per video, spaces included
+                        "short_ta": 1_500, "long_ta": 12_000}    # Tamil script needs ~1.4x the characters
+LANGUAGES = {
+    "en": {"name": "English", "tts_language": "en-US"},
+    "ta": {"name": "Tamil", "tts_language": "ta-IN"},
+}
 
 
 @dataclass(frozen=True)
@@ -177,7 +183,12 @@ class Settings:
     min_lead_minutes: int = 120              # publishAt must be at least this far in the future
     approval_ttl_hours: int = 24
     publish_window_hours: int = 24           # approved item must be uploaded within this window
-    tts_monthly_char_budget: int = 600_000   # Chirp 3 HD free tier = 1M chars/month (spaces count)
+    tts_monthly_char_budget: int = 850_000   # Chirp 3 HD free tier = 1M chars/month (spaces count)
+    video_languages: tuple = ("en", "ta")    # each video is also made in Tamil (owner, 2026-11-25)
+    tts_voice_ta: str = "ta-IN-Chirp3-HD-Charon"     # same narrator as English
+    tts_fallback_voice_ta: str = "ta-IN-Wavenet-B"   # separate free tier (4M chars/month)
+    publish_time_ta: str = "21:00"           # Tamil Short slot (English Short: publish_time / peak)
+    long_publish_time_ta: str = "18:30"      # Tamil long slot (English long: long_publish_time)
     tts_voice: str = "en-US-Chirp3-HD-Charon"
     tts_language: str = "en-US"
     tts_provider: str = "google"             # google | kokoro | edge | piper | tone (tests only)
@@ -192,6 +203,14 @@ class Settings:
     long_publish_time: str = "17:30"         # long-form slot (Shorts: publish_time / peak-time)
     long_outro_text: str = ("If this made system design click for you, subscribe. "
                             "A new breakdown drops every day.")
+    outro_text_ta: str = "இது பிடித்திருந்தால் subscribe பண்ணுங்க. தினமும் ஒரு புதிய tech செய்தி வரும்."
+    long_outro_text_ta: str = ("System design இப்போ புரிஞ்சிருந்தா subscribe பண்ணுங்க. "
+                               "தினமும் ஒரு புதிய விளக்கம் வரும்.")
+
+    def outro_for(self, long: bool, lang: str) -> str:
+        if lang == "ta":
+            return self.long_outro_text_ta if long else self.outro_text_ta
+        return self.long_outro_text if long else self.outro_text
     max_source_video_seconds: float = 180.0
     max_source_video_bytes: int = 2 * 1024**3
     spreadsheet_id: str = ""
@@ -221,7 +240,12 @@ class Settings:
             publish_time=e.get("PUBLISH_TIME", "19:30"),
             approval_ttl_hours=int(e.get("APPROVAL_TTL_HOURS", "24")),
             # never above 90 % of Google's free tier, so voice can never become a paid cost
-            tts_monthly_char_budget=min(int(e.get("TTS_MONTHLY_CHAR_BUDGET", "600000")), TTS_FREE_TIER_CAP),
+            tts_monthly_char_budget=min(int(e.get("TTS_MONTHLY_CHAR_BUDGET", "850000")), TTS_FREE_TIER_CAP),
+            video_languages=tuple(x.strip() for x in e.get("VIDEO_LANGUAGES", "en,ta").split(",")
+                                  if x.strip() in LANGUAGES) or ("en",),
+            tts_voice_ta=e.get("TTS_VOICE_TA", "ta-IN-Chirp3-HD-Charon"),
+            publish_time_ta=e.get("PUBLISH_TIME_TA", "21:00"),
+            long_publish_time_ta=e.get("LONG_PUBLISH_TIME_TA", "18:30"),
             tts_voice=e.get("TTS_VOICE", "en-US-Chirp3-HD-Charon"),
             tts_language=e.get("TTS_LANGUAGE", "en-US"),
             tts_provider=e.get("TTS_PROVIDER", "google"),

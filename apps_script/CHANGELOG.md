@@ -2,6 +2,13 @@
 
 The owner updates the script; Claude never pushes it. Newest first. Each entry = one SCRIPT_VERSION.
 
+## 2026.11.25-3
+- **Tamil versions**: every video is also made in Tamil (ids: Short 051–099, long 151–199). The
+  approval email says "Tamil Short" / "Tamil long video"; the upload sets the video and audio
+  language from the video (Tamil = `ta`) instead of always English.
+- Skipped videos are only re-offered for a slot of the same format AND language.
+- Approval reply format unchanged (`APPROVED VIDEO-…`). No new service or permission.
+
 ## 2026.11.25-2
 - Every upload now declares "no paid product placement" explicitly. YouTube stopped assuming it
   on 2026-11-03; without it videos are not marked as free of paid promotion.

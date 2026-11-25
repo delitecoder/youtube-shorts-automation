@@ -23,13 +23,16 @@
 
 // Bump on every change and add an entry to apps_script/CHANGELOG.md: the daily run compares this
 // with the deployed version and emails the approver when an update is needed.
-var SCRIPT_VERSION = '2026.11.25-2';
+var SCRIPT_VERSION = '2026.11.25-3';
 var TTL_HOURS = 24;
 var SLOT_MARGIN_MIN = 15;            // approvals must arrive this long before the publish slot
 var MAX_UPLOAD_BYTES = 45 * 1024 * 1024;   // Apps Script blob limit: bigger files use the chunked upload
 var CHUNK_BYTES = 32 * 1024 * 1024;        // resumable upload chunk (multiple of 256 KiB, < 50 MB fetch limit)
 // Long-form (16:9) videos use ids VIDEO-YYYYMMDD-101…199; Shorts use 001…099 (same reply format).
 function isLong_(vid) { return Number(String(vid).slice(-3)) > 100; }
+// Tamil versions: Short 051–099, long 151–199 (English: 001–050, 101–150)
+function isTamil_(vid) { return Number(String(vid).slice(-3)) % 100 > 50; }
+function kind_(vid) { return (isLong_(vid) ? 'long' : 'short') + (isTamil_(vid) ? '-ta' : '-en'); }
 var CMD_RE = /^(YES|NO|APPROVED|REJECTED|APPROVE|REJECT) (VIDEO-\d{8}-\d{3})$/;
 var CMD_MAP = { YES: 'YES', APPROVED: 'YES', APPROVE: 'YES', NO: 'NO', REJECTED: 'NO', REJECT: 'NO' };
 // Upload flags live ONLY in Script Properties (the Claude pipeline can write keys.json, not these):
@@ -182,7 +185,7 @@ function sendRequests_(ss) {
     var deadline = deadline_(new Date().toISOString(), r.proposed_publish_at);
     var buttons = props_().getProperty('APPROVAL_BUTTONS_URL') || '';   // approver's approval_buttons.gs web app
     if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(buttons)) buttons = '';
-    var subject = '🎬 Approve today\'s ' + (isLong_(r.video_id) ? 'long video' : 'Short') + '? ' + r.video_id + ' · ' + r.title;
+    var subject = '🎬 Approve today\'s ' + (isTamil_(r.video_id) ? 'Tamil ' : '') + (isLong_(r.video_id) ? 'long video' : 'Short') + '? ' + r.video_id + ' · ' + r.title;
     var cands = candidates_(ss, r);                     // recently skipped videos, offered as alternatives
     var btn_ = function (action, vid) { return buttons + '?a=' + action + '&v=' + vid + '&r=' + r.video_id; };
     var plain = [
@@ -253,6 +256,7 @@ function sendRequests_(ss) {
       drive_file_id: r.drive_file_id, sha256: r.sha256, title: r.title, description: r.description,
       tags: r.tags, publish_at: r.proposed_publish_at, thread_id: msg.getThread().getId(),
       category_id: String((qr.youtube || {}).category_id || '28'),
+      language: String((qr.youtube || {}).language || 'en'),
       request_message_id: msg.getId(), requested_at: sentAt }));
     var ok = casUpdate_(ss, r.video_id, 'AWAITING_APPROVAL', r.version, {
       approval_thread_id: msg.getThread().getId(), approval_request_message_id: msg.getId(),
@@ -269,7 +273,7 @@ function candidates_(ss, r) {
   var since = Utilities.formatDate(new Date(Date.now() - 7 * 864e5), 'Asia/Kolkata', 'yyyyMMdd');
   return table_(ss, 'VideoQueue').rows.filter(function (c) {
     if (c.state !== 'EXPIRED' || c.video_id === r.video_id || !c.drive_file_id || !snap_(c.video_id)) return false;
-    if (isLong_(c.video_id) !== isLong_(r.video_id)) return false;         // a Short never takes a long slot
+    if (kind_(c.video_id) !== kind_(r.video_id)) return false;   // same format and language only
     if (c.video_id.slice(6, 14) < since || props_().getProperty('up:' + c.video_id)) return false;
     try { return !DriveApp.getFileById(c.drive_file_id).isTrashed(); } catch (e) { return false; }
   }).sort(function (a, b) { return a.video_id < b.video_id ? 1 : -1; }).slice(0, 3);
@@ -526,7 +530,7 @@ function uploadApproved_(ss) {
       if (props_().getProperty('SYNTHETIC_MEDIA') === 'true') status.containsSyntheticMedia = true;
       if (publishAt) status.publishAt = publishAt;
       var resource = { snippet: { title: sn.title, description: sn.description, tags: tags,
-        categoryId: sn.category_id || '28', defaultLanguage: 'en', defaultAudioLanguage: 'en' }, status: status,
+        categoryId: sn.category_id || '28', defaultLanguage: sn.language || 'en', defaultAudioLanguage: sn.language || 'en' }, status: status,
         // since 2026-11-03 YouTube no longer assumes "no paid placement": declare it explicitly
         paidProductPlacementDetails: { hasPaidProductPlacement: false } };
       if (file.getSize() > MAX_UPLOAD_BYTES) {
