@@ -2,7 +2,7 @@ Daily YouTube Shorts production run (fresh cloud session).
 
 1. Get the code: if a `youtube-shorts-automation` checkout exists, `cd` into it and `git pull --ff-only`;
    otherwise `git clone --depth 1 https://github.com/delitecoder/youtube-shorts-automation.git` and `cd` into it.
-2. Install if missing: `pip install -q -r requirements.txt`, `bash scripts/fetch_kokoro.sh`,
+2. Install if missing: `python -m pip install -q -r requirements.txt`, `bash scripts/fetch_kokoro.sh`,
    `npm ci --prefix renderer/hyperframes --silent` (HyperFrames renderer).
 3. `PYTHONPATH=src python -m ytauto doctor`. If `setup_complete` is false or `ok` is false, stop and
    reply with one line naming what is missing.

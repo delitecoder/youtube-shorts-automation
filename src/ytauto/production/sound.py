@@ -352,7 +352,11 @@ def mix(voice: Path, out: Path, duration: float, scenes: list[dict], timings: li
         chains.append(f"[{idx}:a]volume=0.35[s]")
         labels.append("[s]")
     graph = ";".join(chains) + ";" + "".join(labels) + \
-        f"amix=inputs={len(labels)}:normalize=0:duration=first,loudnorm=I=-14:TP=-1.5:LRA=11[out]"
+        f"amix=inputs={len(labels)}:normalize=0:duration=first[out]"
+    premix = workdir / "premix.wav"
     subprocess.run(["ffmpeg", "-v", "error", "-y", *inputs, "-filter_complex", graph, "-map", "[out]",
-                    "-ar", str(SR), "-ac", "1", str(out)], check=True)
+                    "-ar", str(SR), "-ac", "1", str(premix)], check=True)
+    from .audio import normalize_two_pass
+    normalize_two_pass(premix, out, -14.0, -1.5)          # accurate -14 LUFS (single pass undershot)
+    premix.unlink(missing_ok=True)
     return attributions

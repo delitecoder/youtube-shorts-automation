@@ -78,6 +78,14 @@ _Last updated: 2026-11-24_
 - SEO metadata rules enforced (title ≤ 70, 3–5 hashtags incl. #Shorts, 8–15 tags, category 28/27).
 - YouTube audit not required to publish (lifted 2026-11-02 per API revision history).
 
+## Fixed (2026-11-25, from the first scheduled run)
+- Loudness QC failed (-16.2 LUFS): single-pass loudnorm on the mix undershoots on short clips with
+  pauses. Now two-pass (measure → linear apply → verify/trim with true-peak limiter):
+  real narration mix -14.3 LUFS, final MP4 QC ok.
+- Scheduled sessions cannot read usage limits (no get_session/list_events): `budget --unknown`
+  returns go_lean without inventing numbers; weekly-limit cases are covered by the 12:30 watchdog.
+- Fresh containers can have `pip` for a different Python than `python`: always `python -m pip`.
+
 ## Test results
 `python -m pytest -q` → 140 passed (real renders, real Kokoro synthesis, Apps Script parity).
 Mutation check: removing the SENT-label check, request-time check, or checksum check makes tests fail.

@@ -65,3 +65,27 @@ def test_audit_with_no_data_does_not_invent():
     from ytauto.analytics.audit import analyse
     a = analyse({"date": "2026-11-24", "videos": []})
     assert a["top"] == [] and "No video data" in a["suggestions"][0]
+
+
+def test_budget_unknown_usage_is_lean_and_invents_nothing(tmp_path):
+    import json, os, subprocess, sys
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    env = {**os.environ, "YTA_RUNTIME_DIR": str(tmp_path), "DRY_RUN": "true", "PYTHONPATH": str(root / "src")}
+    env.pop("YTA_PIPELINE_OAUTH", None)
+    out = subprocess.run([sys.executable, "-m", "ytauto", "budget", "--unknown"], capture_output=True, text=True, env=env)
+    d = json.loads(out.stdout.strip().splitlines()[-1])
+    assert d["decision"] == "go_lean" and d["usage_known"] is False
+
+
+def test_loudness_two_pass_hits_target(tmp_path):
+    import numpy as np
+    from ytauto.production import audio, sound
+    sr = sound.SR
+    x = np.zeros(sr * 30, np.float32)                 # speech-like bursts with long pauses
+    for start in range(0, 26, 4):
+        t = np.arange(int(sr * 2.2)) / sr
+        x[start * sr: start * sr + len(t)] = 0.08 * np.sin(2 * np.pi * 180 * t) * (0.6 + 0.4 * np.sin(2 * np.pi * 3 * t))
+    src = sound.write_wav(tmp_path / "in.wav", x)
+    res = audio.normalize_two_pass(src, tmp_path / "out.wav")
+    assert abs(res["lufs"] + 14) <= 0.5, res

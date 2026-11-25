@@ -44,6 +44,51 @@ def build_timeline(scene_audio: list[Path], out_wav: Path) -> list[dict]:
     return timings
 
 
+def measure_lufs(path: Path) -> float | None:
+    r = subprocess.run(["ffmpeg", "-nostats", "-i", str(path), "-af", "ebur128", "-f", "null", "-"],
+                       capture_output=True, text=True)
+    for line in reversed(r.stderr.splitlines()):
+        line = line.strip()
+        if line.startswith("I:") and "LUFS" in line:
+            return float(line.split()[1])
+    return None
+
+
+def normalize_two_pass(src: Path, dst: Path, lufs: float = -14.0, tp: float = -1.5) -> dict:
+    """Accurate EBU R128 normalisation for short narrated clips.
+
+    Single-pass `loudnorm` undershoots on 45–60 s mixes with pauses (measured -15.8 / -16.2 LUFS).
+    Pass 1 measures the whole file, pass 2 applies the measured values in linear mode, then the
+    result is measured again and trimmed with a plain gain + true-peak limiter if it is still off
+    by more than 0.5 LU. Returns {"lufs": final, "passes": n}."""
+    import json as _json
+    import re as _re
+
+    r = subprocess.run(["ffmpeg", "-nostats", "-i", str(src), "-af",
+                        f"loudnorm=I={lufs}:TP={tp}:LRA=11:print_format=json", "-f", "null", "-"],
+                       capture_output=True, text=True)
+    m = _re.search(r"\{[^{}]*\"input_i\"[^{}]*\}", r.stderr, _re.S)
+    if m:
+        d = _json.loads(m.group(0))
+        af = (f"loudnorm=I={lufs}:TP={tp}:LRA=11:measured_I={d['input_i']}:measured_TP={d['input_tp']}:"
+              f"measured_LRA={d['input_lra']}:measured_thresh={d['input_thresh']}:"
+              f"offset={d['target_offset']}:linear=true")
+    else:                                            # could not measure: fall back to one pass
+        af = f"loudnorm=I={lufs}:TP={tp}:LRA=11"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(src), "-af", af, "-ar", str(SR), "-ac", "1",
+                    str(dst)], check=True)
+    passes, final = 2, measure_lufs(dst)
+    if final is not None and abs(final - lufs) > 0.5:
+        tmp = dst.with_name(dst.stem + "_trim.wav")
+        limit = 10 ** (tp / 20)                      # -1.5 dBTP -> 0.841 linear
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(dst), "-af",
+                        f"volume={lufs - final:.2f}dB,alimiter=limit={limit:.3f}:level=disabled",
+                        "-ar", str(SR), "-ac", "1", str(tmp)], check=True)
+        tmp.replace(dst)
+        passes, final = 3, measure_lufs(dst)
+    return {"lufs": final, "passes": passes}
+
+
 def normalize(src: Path, dst: Path, lufs: float = -14.0, tp: float = -1.5) -> Path:
     """Single-pass EBU R128 loudness normalisation (target -14 LUFS, true peak -1.5 dBTP)."""
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(src), "-af",

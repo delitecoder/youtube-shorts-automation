@@ -38,6 +38,9 @@ How to read the real numbers (costs almost nothing):
    - `wait`: arm `send_later` for `resume_after_minutes`, checkpoint, stop (start after the reset).
    - `weekly_stop`: stop now. The command already queued an alert email ("weekly Claude limit
      reached, no videos until <reset>"). One video per day is never exceeded.
+   If `get_session` / `list_events` are not available in this session (scheduled runs usually lack
+   them), run `python -m ytauto budget --unknown` instead: it returns `go_lean` without inventing
+   numbers; skip `--record` and the `send_later` safety net in that case.
 4. Re-check (steps 2–3 without `--record`) before research, before render, and before submit; if the
    decision got worse, switch to lean or wait at that point instead of running out mid-step.
 5. After `submit` (or when stopping), run the same command with `--record end` so the per-video cost
@@ -59,7 +62,8 @@ not a fixed clock:
   the next day's video.
 
 ## Daily workflow (scheduled task)
-Run from the repo root with `PYTHONPATH=src`. Work files go in `runtime/work/<VIDEO_ID>/`.
+Run from the repo root with `PYTHONPATH=src`. Always install with `python -m pip` (plain `pip` can
+belong to a different Python than `python` in fresh containers). Work files go in `runtime/work/<VIDEO_ID>/`.
 
 1. `python -m ytauto doctor` → stop and report if `ok` is false.
    `bash scripts/fetch_kokoro.sh` (offline fallback voice) and `python -m ytauto sync-library`
@@ -96,7 +100,7 @@ Run from the repo root with `PYTHONPATH=src`. Work files go in `runtime/work/<VI
 6. **storywriter** (sonnet) → `storyboard.json` + `metadata.json` →
    `python -m ytauto validate-storyboard --file storyboard.json` (add `--document-based` for docs).
    Every video should have 1–2 `image` scenes (licensed internet photos):
-   `pip install -q -r requirements-vision.txt` (if not installed), then
+   `python -m pip install -q -r requirements-vision.txt` (if not installed), then
    `python -m ytauto resolve-images --storyboard storyboard.json`
    (internet images: CC0/PD/CC BY only, checked locally by OmniVision; owner images from Drive
    `References/Images` via `fetch-asset`). Unresolved scenes become title cards automatically.

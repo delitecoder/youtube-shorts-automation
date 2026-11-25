@@ -655,6 +655,15 @@ def cmd_budget(ctx: Ctx, a) -> int:
     """Decide whether/how to make today's video from the session's real usage numbers.
     --record start|end stores utilization so the per-video cost is learned over time."""
     from . import budget as b
+    if a.unknown:
+        # The session cannot read its usage limits (tools unavailable): never invent numbers.
+        out({"decision": "go_lean", "usage_known": False,
+             "reason": "usage limits not readable in this session; lean plan keeps the run short. "
+                       "Weekly-limit problems are still caught by the Apps Script 12:30 IST watchdog."})
+        return 0
+    if None in (a.five_hour, a.five_reset, a.seven_day, a.seven_reset):
+        out({"error": "pass all four usage numbers, or --unknown"})
+        return 2
     samples = b.loads(ctx.store.get_config("claude_usage_samples", "[]"))
     now_util = {"five_hour": a.five_hour, "seven_day": a.seven_day}
     if a.record == "start":
@@ -772,12 +781,13 @@ def main(argv=None) -> int:
     p = sub.add_parser("audit"); p.add_argument("--email", action="store_true")
     sub.add_parser("apps-script-check")
     p = sub.add_parser("budget")
-    p.add_argument("--five-hour", type=float, required=True, help="five_hour utilization 0-1")
-    p.add_argument("--five-reset", type=int, required=True, help="five_hour resetsAt (epoch s)")
-    p.add_argument("--seven-day", type=float, required=True, help="seven_day utilization 0-1")
-    p.add_argument("--seven-reset", type=int, required=True, help="seven_day resetsAt (epoch s)")
+    p.add_argument("--five-hour", type=float, help="five_hour utilization 0-1")
+    p.add_argument("--five-reset", type=int, help="five_hour resetsAt (epoch s)")
+    p.add_argument("--seven-day", type=float, help="seven_day utilization 0-1")
+    p.add_argument("--seven-reset", type=int, help="seven_day resetsAt (epoch s)")
     p.add_argument("--five-status", default="allowed"); p.add_argument("--seven-status", default="allowed")
     p.add_argument("--record", choices=["start", "end"])
+    p.add_argument("--unknown", action="store_true", help="usage cannot be read in this session")
     p = sub.add_parser("checkpoint"); p.add_argument("--video-id", required=True)
     p = sub.add_parser("restore"); p.add_argument("--video-id", required=True)
     sub.add_parser("reconcile")
