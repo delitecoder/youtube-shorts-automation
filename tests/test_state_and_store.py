@@ -78,3 +78,11 @@ def test_windows_lock_path(tmp_path, monkeypatch):
     store.transition(rec.video_id, State.DISCOVERED, State.RESEARCHING, rec.version)
     assert store.get(rec.video_id).state == State.RESEARCHING
     assert calls and calls.count(2) == calls.count(0)        # every lock was released
+
+
+def test_sheets_calls_retry_dropped_connections():
+    import inspect
+
+    from ytauto.integrations import sheets
+    src = inspect.getsource(sheets)
+    assert ".execute()" not in src and src.count("num_retries=RETRIES") >= 8 and sheets.RETRIES >= 2

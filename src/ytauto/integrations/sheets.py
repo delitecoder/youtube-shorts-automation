@@ -7,6 +7,9 @@ from ..state import COLUMNS, ConflictError, State, VideoRecord, iso, utcnow
 from ..store import TABS, _apply
 
 SPREADSHEET_NAME = "YouTube_Automation_Control"
+# Retries on dropped connections (e.g. the keep-alive socket closed by Google during a long render:
+# BrokenPipeError on the next call). googleapiclient reconnects and retries reads/writes.
+RETRIES = 3
 
 
 def _col(n: int) -> str:
@@ -27,24 +30,24 @@ class SheetsStore:
     def create_spreadsheet(cls, service) -> str:
         body = {"properties": {"title": SPREADSHEET_NAME},
                 "sheets": [{"properties": {"title": t}} for t in TABS]}
-        sid = service.spreadsheets().create(body=body, fields="spreadsheetId").execute()["spreadsheetId"]
+        sid = service.spreadsheets().create(body=body, fields="spreadsheetId").execute(num_retries=RETRIES)["spreadsheetId"]
         store = cls(service, sid)
         store.ensure_schema()
         return sid
 
     def ensure_schema(self) -> None:
-        meta = self.svc.get(spreadsheetId=self.sid, fields="sheets(properties(title))").execute()
+        meta = self.svc.get(spreadsheetId=self.sid, fields="sheets(properties(title))").execute(num_retries=RETRIES)
         have = {s["properties"]["title"] for s in meta["sheets"]}
         missing = [t for t in TABS if t not in have]
         if missing:
             self.svc.batchUpdate(spreadsheetId=self.sid, body={"requests": [
-                {"addSheet": {"properties": {"title": t}}} for t in missing]}).execute()
-        meta = self.svc.get(spreadsheetId=self.sid, fields="sheets(properties(sheetId,title))").execute()
+                {"addSheet": {"properties": {"title": t}}} for t in missing]}).execute(num_retries=RETRIES)
+        meta = self.svc.get(spreadsheetId=self.sid, fields="sheets(properties(sheetId,title))").execute(num_retries=RETRIES)
         self.svc.batchUpdate(spreadsheetId=self.sid, body={"requests": [
             {"repeatCell": {"range": {"sheetId": sh["properties"]["sheetId"]},
                             "cell": {"userEnteredFormat": {"numberFormat": {"type": "TEXT"}}},
                             "fields": "userEnteredFormat.numberFormat"}}
-            for sh in meta["sheets"] if sh["properties"]["title"] in TABS]}).execute()
+            for sh in meta["sheets"] if sh["properties"]["title"] in TABS]}).execute(num_retries=RETRIES)
         for tab, cols in TABS.items():
             hdr = self._values(f"{tab}!1:1")
             if not hdr:
@@ -55,11 +58,11 @@ class SheetsStore:
     # ---------------- low level
     def _values(self, rng: str) -> list[list[str]]:
         return self.svc.values().get(spreadsheetId=self.sid, range=rng,
-                                     valueRenderOption="FORMATTED_VALUE").execute().get("values", [])
+                                     valueRenderOption="FORMATTED_VALUE").execute(num_retries=RETRIES).get("values", [])
 
     def _write(self, rng: str, values: list[list[str]]) -> None:
         self.svc.values().update(spreadsheetId=self.sid, range=rng, valueInputOption="RAW",
-                                 body={"values": values}).execute()
+                                 body={"values": values}).execute(num_retries=RETRIES)
 
     def _table(self, tab: str) -> list[dict]:
         vals = self._values(f"{tab}!A1:{_col(len(TABS[tab]))}")
@@ -92,7 +95,7 @@ class SheetsStore:
         row = rec.to_row()
         self.svc.values().append(spreadsheetId=self.sid, range="VideoQueue!A1",
                                  valueInputOption="RAW", insertDataOption="INSERT_ROWS",
-                                 body={"values": [[row[c] for c in COLUMNS]]}).execute()
+                                 body={"values": [[row[c] for c in COLUMNS]]}).execute(num_retries=RETRIES)
         dupes = [r for r in self._table("VideoQueue") if r.get("video_id") == rec.video_id]
         if len(dupes) != 1 or dupes[0].get("write_token") != rec.write_token:
             raise ConflictError(f"{rec.video_id} was created concurrently; manual check required")
@@ -122,7 +125,7 @@ class SheetsStore:
             raise ValueError(tab)
         self.svc.values().append(spreadsheetId=self.sid, range=f"{tab}!A1", valueInputOption="RAW",
                                  insertDataOption="INSERT_ROWS",
-                                 body={"values": [[str(row.get(c, "")) for c in TABS[tab]]]}).execute()
+                                 body={"values": [[str(row.get(c, "")) for c in TABS[tab]]]}).execute(num_retries=RETRIES)
 
     def rows(self, tab):
         return self._table(tab)
