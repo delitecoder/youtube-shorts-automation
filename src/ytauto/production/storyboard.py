@@ -43,13 +43,24 @@ def words(text: str) -> int:
     return len(re.findall(r"[\w'’-]+", text))
 
 
+TA_CPS = 13.5        # Tamil Chirp 3 HD: measured ~13.5 characters/second (2026-11-25 test render)
+
+
+def _scene_secs(text: str, lang: str) -> float:
+    if lang == "ta":     # Tamil vowel signs are not \w: count characters, not regex words
+        return len(" ".join(text.split())) / TA_CPS
+    return words(text) / WPS
+
+
 def estimate(sb: dict) -> dict:
     t, scenes = 0.0, []
+    lang = sb.get("language", "en")
     for i, s in enumerate(sb.get("scenes", [])):
-        d = words(s.get("narration", "")) / WPS + SCENE_PAD_S
+        d = _scene_secs(s.get("narration", ""), lang) + SCENE_PAD_S
         scenes.append({"scene": i + 1, "start": round(t, 2), "end": round(t + d, 2)})
         t += d
-    total_words = sum(words(s.get("narration", "")) for s in sb.get("scenes", []))
+    total_words = sum(len(s.get("narration", "").split()) if lang == "ta" else words(s.get("narration", ""))
+                      for s in sb.get("scenes", []))
     return {"words": total_words, "est_seconds": round(t, 1), "scenes": scenes}
 
 
@@ -179,7 +190,7 @@ def validate_long(sb: dict, require_sources: bool = True) -> tuple[list[str], li
             e.append(f"scene {i}: visual missing {sorted(missing)}")
         if v.get("type") == "code" and len(v.get("code", "").splitlines()) > 16:
             e.append(f"scene {i}: code longer than 16 lines")
-        d = words(s.get("narration", "")) / WPS
+        d = _scene_secs(s.get("narration", ""), sb.get("language", "en"))
         if d > 20:
             w.append(f"scene {i}: ~{d:.0f}s on one visual; split it (attention drops after ~12 s)")
         if i > 1 and v.get("type") == scenes[i - 2].get("visual", {}).get("type"):
@@ -263,7 +274,7 @@ def validate_storyboard(sb: dict, require_sources: bool = True) -> tuple[list[st
     elif not 40 <= est["est_seconds"] <= 65:
         w.append(f"estimated {est['est_seconds']}s outside the ~45–60s target")
     _char_check(sb, e, "short")
-    if not 100 <= est["words"] <= 145:
+    if sb.get("language", "en") == "en" and not 100 <= est["words"] <= 145:
         w.append(f"{est['words']} words (target ~100–145)")
     if not sb["closing_question"].strip().endswith("?"):
         e.append("closing_question must be a question")

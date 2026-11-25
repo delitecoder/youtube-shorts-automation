@@ -70,3 +70,10 @@ def test_discover_asks_for_tamil_version_after_english_submit():
                          notes=f"ta version of {en.video_id}")
     assert cli._needs_localize(ctx, [en, ta], today) is None
     assert cli._needs_localize(SimpleNamespace(s=Settings.from_env({"VIDEO_LANGUAGES": "en"})), [en], today) is None
+
+
+def test_tamil_duration_estimate_uses_characters():
+    sb = json.loads((FIX / "sample_storyboard.json").read_text())
+    ta = dict(sb, language="ta", scenes=[dict(x, narration="அ" * 135) for x in sb["scenes"]])
+    est = sbm.estimate(ta)
+    assert abs(est["est_seconds"] - len(ta["scenes"]) * (10 + sbm.SCENE_PAD_S)) < 0.5
