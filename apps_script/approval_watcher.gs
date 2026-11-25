@@ -23,10 +23,13 @@
 
 // Bump on every change and add an entry to apps_script/CHANGELOG.md: the daily run compares this
 // with the deployed version and emails the approver when an update is needed.
-var SCRIPT_VERSION = '2026.11.24-4';
+var SCRIPT_VERSION = '2026.11.25-1';
 var TTL_HOURS = 24;
 var SLOT_MARGIN_MIN = 15;            // approvals must arrive this long before the publish slot
-var MAX_UPLOAD_BYTES = 45 * 1024 * 1024;   // Apps Script blob limit (generated Shorts are ~5 MB)
+var MAX_UPLOAD_BYTES = 45 * 1024 * 1024;   // Apps Script blob limit: bigger files use the chunked upload
+var CHUNK_BYTES = 32 * 1024 * 1024;        // resumable upload chunk (multiple of 256 KiB, < 50 MB fetch limit)
+// Long-form (16:9) videos use ids VIDEO-YYYYMMDD-101…199; Shorts use 001…099 (same reply format).
+function isLong_(vid) { return Number(String(vid).slice(-3)) > 100; }
 var CMD_RE = /^(YES|NO|APPROVED|REJECTED|APPROVE|REJECT) (VIDEO-\d{8}-\d{3})$/;
 var CMD_MAP = { YES: 'YES', APPROVED: 'YES', APPROVE: 'YES', NO: 'NO', REJECTED: 'NO', REJECT: 'NO' };
 // Upload flags live ONLY in Script Properties (the Claude pipeline can write keys.json, not these):
@@ -179,7 +182,7 @@ function sendRequests_(ss) {
     var deadline = deadline_(new Date().toISOString(), r.proposed_publish_at);
     var buttons = props_().getProperty('APPROVAL_BUTTONS_URL') || '';   // approver's approval_buttons.gs web app
     if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(buttons)) buttons = '';
-    var subject = '🎬 Approve today\'s Short? ' + r.video_id + ' · ' + r.title;
+    var subject = '🎬 Approve today\'s ' + (isLong_(r.video_id) ? 'long video' : 'Short') + '? ' + r.video_id + ' · ' + r.title;
     var cands = candidates_(ss, r);                     // recently skipped videos, offered as alternatives
     var btn_ = function (action, vid) { return buttons + '?a=' + action + '&v=' + vid + '&r=' + r.video_id; };
     var plain = [
@@ -266,6 +269,7 @@ function candidates_(ss, r) {
   var since = Utilities.formatDate(new Date(Date.now() - 7 * 864e5), 'Asia/Kolkata', 'yyyyMMdd');
   return table_(ss, 'VideoQueue').rows.filter(function (c) {
     if (c.state !== 'EXPIRED' || c.video_id === r.video_id || !c.drive_file_id || !snap_(c.video_id)) return false;
+    if (isLong_(c.video_id) !== isLong_(r.video_id)) return false;         // a Short never takes a long slot
     if (c.video_id.slice(6, 14) < since || props_().getProperty('up:' + c.video_id)) return false;
     try { return !DriveApp.getFileById(c.drive_file_id).isTrashed(); } catch (e) { return false; }
   }).sort(function (a, b) { return a.video_id < b.video_id ? 1 : -1; }).slice(0, 3);
@@ -491,6 +495,7 @@ function verifyApproval_(vid, sn, ap) {
 function uploadApproved_(ss) {
   var dry = props_().getProperty('DRY_RUN') || String(keysFile_().DRY_RUN || 'true');
   table_(ss, 'VideoQueue').rows.forEach(function (r) {
+    if (r.state === 'UPLOADING' && props_().getProperty('rs:' + r.video_id)) { continueChunked_(ss, r); return; }
     if (r.state !== 'APPROVED') return;
     var vid = r.video_id, sn = snap_(vid), apRaw = props_().getProperty('appr:' + vid);
     if (!sn || !apRaw) { logOnce_(ss, vid, 'nosnap', 'Approved row without this script\'s own approval record; not uploading.'); return; }
@@ -515,31 +520,101 @@ function uploadApproved_(ss) {
     var cur = table_(ss, 'VideoQueue').rows.filter(function (x) { return x.video_id === vid; })[0];
     try {
       var file = DriveApp.getFileById(sn.drive_file_id);
-      if (file.getSize() > MAX_UPLOAD_BYTES) throw 'file larger than 45 MB; use the Cloud Run publisher';
-      var blob = file.getBlob();
-      var digest = hex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, blob.getBytes()));
-      if (digest !== sn.sha256) throw 'checksum mismatch: the file changed after approval';
       var tags = []; try { tags = JSON.parse(sn.tags || '[]'); } catch (e) {}
       var status = { privacyStatus: 'private', selfDeclaredMadeForKids: false, embeddable: true,
                      publicStatsViewable: true, license: 'youtube' };
       if (props_().getProperty('SYNTHETIC_MEDIA') === 'true') status.containsSyntheticMedia = true;
       if (publishAt) status.publishAt = publishAt;
-      var res = YouTube.Videos.insert({ snippet: { title: sn.title, description: sn.description, tags: tags,
-        categoryId: sn.category_id || '28', defaultLanguage: 'en', defaultAudioLanguage: 'en' }, status: status },
-        'snippet,status', blob);
-      props_().setProperty('up:' + vid, JSON.stringify({ youtube_id: res.id, at: nowIso_() }));
-      casUpdate_(ss, vid, 'UPLOADING', cur.version, { state: 'SCHEDULED', youtube_video_id: res.id,
-                                                     proposed_publish_at: publishAt || '' });
-      append_(ss, 'PublishedVideos', { recorded_at: nowIso_(), video_id: vid, youtube_video_id: res.id, privacy: 'private',
-        publish_at: publishAt || '', title: sn.title, sha256: sn.sha256, status: publishAt ? 'scheduled' : 'uploaded_private' });
-      archiveVideo_(ss, { video_id: vid, drive_file_id: sn.drive_file_id });
-      logError_(ss, vid, 'uploader', 'Uploaded ✓ https://youtu.be/' + res.id + (publishAt ? ' — goes public ' + ist_(publishAt)
-        : ' — private (PUBLICATION_ENABLED is off)'), 'INFO');
+      var resource = { snippet: { title: sn.title, description: sn.description, tags: tags,
+        categoryId: sn.category_id || '28', defaultLanguage: 'en', defaultAudioLanguage: 'en' }, status: status };
+      if (file.getSize() > MAX_UPLOAD_BYTES) {
+        // Big (long-form) file: Drive's own SHA-256 of the stored file must equal the approved one,
+        // then a resumable upload in chunks that continues across 5-minute runs if needed.
+        var meta = driveMeta_(sn.drive_file_id);
+        if (meta.sha256Checksum !== sn.sha256) throw 'checksum mismatch: the file changed after approval';
+        props_().setProperty('rs:' + vid, JSON.stringify({ url: '', offset: 0, size: Number(meta.size),
+                                                           resource: resource, publish_at: publishAt || '' }));
+        continueChunked_(ss, table_(ss, 'VideoQueue').rows.filter(function (x) { return x.video_id === vid; })[0]);
+        return;
+      }
+      var blob = file.getBlob();
+      var digest = hex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, blob.getBytes()));
+      if (digest !== sn.sha256) throw 'checksum mismatch: the file changed after approval';
+      var res = YouTube.Videos.insert(resource, 'snippet,status', blob);
+      uploaded_(ss, vid, sn, cur, res.id, publishAt);
     } catch (e) {
       casUpdate_(ss, vid, 'UPLOADING', cur.version, { state: 'NEEDS_MANUAL_REVIEW', notes: String(e).slice(0, 400) });
       logError_(ss, vid, 'uploader', 'Upload stopped (needs a manual look; it will not retry automatically): ' + e);
     }
   });
+}
+
+/** Success bookkeeping shared by the normal and the chunked upload. */
+function uploaded_(ss, vid, sn, cur, ytId, publishAt) {
+  props_().setProperty('up:' + vid, JSON.stringify({ youtube_id: ytId, at: nowIso_() }));
+  casUpdate_(ss, vid, 'UPLOADING', cur.version, { state: 'SCHEDULED', youtube_video_id: ytId,
+                                                 proposed_publish_at: publishAt || '' });
+  append_(ss, 'PublishedVideos', { recorded_at: nowIso_(), video_id: vid, youtube_video_id: ytId, privacy: 'private',
+    publish_at: publishAt || '', title: sn.title, sha256: sn.sha256, status: publishAt ? 'scheduled' : 'uploaded_private' });
+  archiveVideo_(ss, { video_id: vid, drive_file_id: sn.drive_file_id });
+  logError_(ss, vid, 'uploader', 'Uploaded ✓ https://youtu.be/' + ytId + (publishAt ? ' — goes public ' + ist_(publishAt)
+    : ' — private (PUBLICATION_ENABLED is off)'), 'INFO');
+}
+
+function driveMeta_(fileId) {
+  var r = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(fileId) +
+    '?fields=size,sha256Checksum&supportsAllDrives=true',
+    { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+  if (r.getResponseCode() !== 200) throw 'Drive metadata failed: HTTP ' + r.getResponseCode();
+  return JSON.parse(r.getContentText());
+}
+
+/** Resumable YouTube upload in 32 MB chunks read straight from Drive (no 50 MB blob limit).
+ *  Progress lives in Script Property rs:<id>; a run stops after ~4 min and the next run continues. */
+function continueChunked_(ss, r) {
+  var vid = r.video_id, sn = snap_(vid), st = JSON.parse(props_().getProperty('rs:' + vid) || 'null');
+  if (!st || !sn) return;
+  var token = ScriptApp.getOAuthToken(), started = Date.now();
+  try {
+    if (st.publish_at && new Date(st.publish_at).getTime() - Date.now() < 5 * 60e3)
+      throw 'the publish slot arrived before the upload finished';
+    if (!st.url) {
+      var init = UrlFetchApp.fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', {
+        method: 'post', contentType: 'application/json; charset=UTF-8', payload: JSON.stringify(st.resource),
+        headers: { Authorization: 'Bearer ' + token, 'X-Upload-Content-Length': String(st.size),
+                   'X-Upload-Content-Type': 'video/mp4' }, muteHttpExceptions: true });
+      if (init.getResponseCode() !== 200) throw 'resumable start failed: HTTP ' + init.getResponseCode() + ' ' + init.getContentText().slice(0, 200);
+      var h = init.getAllHeaders();
+      st.url = h.Location || h.location;
+      props_().setProperty('rs:' + vid, JSON.stringify(st));
+    }
+    while (st.offset < st.size) {
+      if (Date.now() - started > 4 * 60e3) return;                         // continue in the next run
+      var end = Math.min(st.offset + CHUNK_BYTES, st.size) - 1;
+      var part = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(sn.drive_file_id) +
+        '?alt=media&supportsAllDrives=true', { headers: { Authorization: 'Bearer ' + token,
+        Range: 'bytes=' + st.offset + '-' + end } }).getContent();
+      var put = UrlFetchApp.fetch(st.url, { method: 'put', contentType: 'video/mp4', payload: part,
+        headers: { Authorization: 'Bearer ' + token, 'Content-Range': 'bytes ' + st.offset + '-' + end + '/' + st.size },
+        muteHttpExceptions: true });
+      var code = put.getResponseCode();
+      if (code === 200 || code === 201) {
+        props_().deleteProperty('rs:' + vid);
+        var cur = table_(ss, 'VideoQueue').rows.filter(function (x) { return x.video_id === vid; })[0];
+        uploaded_(ss, vid, sn, cur, JSON.parse(put.getContentText()).id, st.publish_at);
+        return;
+      }
+      if (code !== 308) throw 'chunk upload failed: HTTP ' + code + ' ' + put.getContentText().slice(0, 200);
+      var rg = put.getAllHeaders().Range || put.getAllHeaders().range || '';
+      st.offset = rg ? Number(String(rg).split('-')[1]) + 1 : end + 1;
+      props_().setProperty('rs:' + vid, JSON.stringify(st));
+    }
+  } catch (e) {
+    props_().deleteProperty('rs:' + vid);
+    var row = table_(ss, 'VideoQueue').rows.filter(function (x) { return x.video_id === vid; })[0];
+    casUpdate_(ss, vid, 'UPLOADING', row.version, { state: 'NEEDS_MANUAL_REVIEW', notes: String(e).slice(0, 400) });
+    logError_(ss, vid, 'uploader', 'Upload stopped (needs a manual look; it will not retry automatically): ' + e);
+  }
 }
 
 function logOnce_(ss, vid, key, msg) {

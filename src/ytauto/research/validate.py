@@ -17,7 +17,8 @@ from ..config import ALLOWED_CATEGORIES
 KEY_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
 
-def validate_research(r: dict, today: date, history: list[dict], dedupe_days: int = 90) -> tuple[list[str], list[str]]:
+def validate_research(r: dict, today: date, history: list[dict], dedupe_days: int = 90,
+                      long: bool = False) -> tuple[list[str], list[str]]:
     e, w = [], []
     for k in ("topic", "topic_key", "category", "angle", "sources", "facts"):
         if k not in r:
@@ -29,8 +30,9 @@ def validate_research(r: dict, today: date, history: list[dict], dedupe_days: in
     if not KEY_RE.match(r["topic_key"]):
         e.append("topic_key must be kebab-case")
     is_doc = r.get("source_type") == "drive_document"
-    if not is_doc and not 3 <= len(r["sources"]) <= 5:
-        e.append("need 3–5 sources for researched topics")
+    hi = 8 if long else 5
+    if not is_doc and not 3 <= len(r["sources"]) <= hi:
+        e.append(f"need 3–{hi} sources for researched topics")
     urls = set()
     for s in r["sources"]:
         if not str(s.get("url", "")).startswith("https://"):

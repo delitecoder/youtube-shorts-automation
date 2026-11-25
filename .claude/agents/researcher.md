@@ -21,6 +21,12 @@ Daily theme (given by the caller from `discover` → `theme`; pick a topic that 
 - custom: the owner chose this topic in the ThemePlan sheet; follow the theme `brief` exactly
   (closest allowed category). Owner `details` in any brief are direction to follow.
 
+- system_design (long-form, 6–8 min): the caller gives the exact topic (e.g. "Load balancers").
+  Set "topic" to that text and topic_key to its kebab-case. Category "system design". Use 4–8
+  sources: engineering blogs of the real companies (official), docs, well-known papers/books.
+  12–25 facts: real-world numbers (scale, latency, QPS), how the real system works, common
+  failure modes and trade-offs. Dates may be any year (evergreen), but must be real.
+
 Input you receive: either document text (source_type "drive_document") or "research", plus a list
 of topic_keys already covered (avoid them) and an optional analytics summary.
 

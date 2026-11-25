@@ -15,6 +15,10 @@ Canvas and rules (the renderer rejects code that breaks them, so follow them exa
   your area is left 0, top 200 px, 1080×1040 px; otherwise it is the visual area
   (left 90, top 440, width 840, height 740) under the scene headline. Keep the bottom 680 px free:
   captions and YouTube's buttons live there. Keep 150 px clear on the right.
+- LONG-FORM videos (the brief says "long"): frame is 1920×1080 (landscape). `full_frame: true`
+  area: left 0, top 110, 1920×800; otherwise the visual area is left 160, top 240, 1600×640 under
+  the headline. Keep the bottom 150 px free for captions. Text ≥ 36 px body, ≥ 56 px titles. Use
+  the width: left-to-right flows (client → load balancer → servers → database).
 - Every element id MUST start with the prefix you are given (e.g. `s3-`). Use classes freely but
   scope your <style> rules under an id with that prefix (e.g. `#s3-root .box{…}`).
 - Allowed: divs, spans, inline <svg>, <style>, <img src="assets/<file>"> for files the director

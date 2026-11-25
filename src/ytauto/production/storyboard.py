@@ -97,14 +97,109 @@ def normalize(sb: dict) -> dict:
 def with_outro(sb: dict, text: str) -> dict:
     """Append the standard subscribe end card (narration + animated button)."""
     out = dict(sb)
+    vis = {"type": OUTRO_TYPE}
+    if is_long(sb):
+        vis["text"] = "A new system-design breakdown every day"
     out["scenes"] = list(sb["scenes"]) + [{
         "narration": text, "on_screen_text": "Enjoyed this?", "transition": "fade",
-        "visual": {"type": OUTRO_TYPE}, "outro": True}]
+        "visual": vis, "outro": True}]
     return out
+
+
+def is_long(sb: dict) -> bool:
+    return sb.get("format") == "long"
+
+
+def chapters(sb: dict, timings: list[dict]) -> list[tuple[float, str]]:
+    """(start seconds, title) per chapter: a scene with "chapter" starts one; the first is 0:00."""
+    out = []
+    for s, t in zip(sb.get("scenes", []), timings):
+        if s.get("chapter"):
+            out.append((0.0 if not out else t["start"], str(s["chapter"]).strip()))
+    if out and out[0][0] != 0.0:
+        out[0] = (0.0, out[0][1])
+    return out
+
+
+def chapter_block(chs: list[tuple[float, str]]) -> str:
+    """YouTube chapters: first at 0:00, ≥ 3 entries, each ≥ 10 s, ascending."""
+    return "\n".join(f"{int(t // 60)}:{int(t % 60):02d} {title}" for t, title in chs)
+
+
+def validate_long(sb: dict, require_sources: bool = True) -> tuple[list[str], list[str]]:
+    """Long-form (16:9, ~6–8 min) system-design explainer."""
+    e, w = [], []
+    for k in ("video_id", "topic", "hooks", "titles", "scenes", "closing_question"):
+        if k not in sb:
+            e.append(f"missing '{k}'")
+    if e:
+        return e, w
+    if len(sb["hooks"]) != 3 or len(sb["titles"]) != 3:
+        e.append("need exactly 3 hooks and 3 titles")
+    for key, arr in (("chosen_hook", "hooks"), ("chosen_title", "titles")):
+        if not isinstance(sb.get(key), int) or not 0 <= sb[key] < len(sb[arr]):
+            e.append(f"'{key}' must index into '{arr}'")
+    scenes = sb["scenes"]
+    if not 30 <= len(scenes) <= 90:
+        e.append(f"{len(scenes)} scenes; need 30–90 (one visual beat every ~5–12 s)")
+    if not scenes or not scenes[0].get("chapter"):
+        e.append("scene 1 must start a chapter (e.g. \"chapter\": \"Intro\")")
+    n_ch = sum(1 for s in scenes if s.get("chapter"))
+    if n_ch < 4:
+        e.append(f"{n_ch} chapters; need ≥ 4 (YouTube shows chapters from 3, viewers jump to them)")
+    run = 1
+    for i, s in enumerate(scenes, 1):
+        if not s.get("narration", "").strip():
+            e.append(f"scene {i}: empty narration")
+        if len(s.get("on_screen_text", "")) > 60:
+            e.append(f"scene {i}: on_screen_text over 60 chars")
+        if s.get("transition", "cut") not in TRANSITIONS:
+            e.append(f"scene {i}: unknown transition")
+        v = normalize_visual(s.get("visual", {}))
+        req = VISUAL_TYPES.get(v.get("type"))
+        if req is None:
+            e.append(f"scene {i}: visual.type must be one of {sorted(VISUAL_TYPES)}")
+        elif missing := req - set(v):
+            e.append(f"scene {i}: visual missing {sorted(missing)}")
+        if v.get("type") == "code" and len(v.get("code", "").splitlines()) > 16:
+            e.append(f"scene {i}: code longer than 16 lines")
+        d = words(s.get("narration", "")) / WPS
+        if d > 20:
+            w.append(f"scene {i}: ~{d:.0f}s on one visual; split it (attention drops after ~12 s)")
+        if i > 1 and v.get("type") == scenes[i - 2].get("visual", {}).get("type"):
+            run += 1
+            if run == 3:
+                w.append(f"scene {i}: third '{v.get('type')}' in a row; vary the visual (pattern interrupt)")
+        else:
+            run = 1
+        if "subscribe" in s.get("narration", "").lower() and i > 3:
+            w.append(f"scene {i}: the subscribe ask is added automatically at the end")
+    if scenes and isinstance(sb.get("chosen_hook"), int) and 0 <= sb["chosen_hook"] < len(sb["hooks"]):
+        if sb["hooks"][sb["chosen_hook"]].strip().lower()[:25] not in scenes[0]["narration"].lower():
+            w.append("first scene narration does not start with the chosen hook")
+    est = estimate(sb)
+    if est["est_seconds"] > 720:
+        e.append(f"estimated {est['est_seconds']}s; too long (target 6–8 min, hard cap 12 min)")
+    elif not 330 <= est["est_seconds"] <= 540:
+        w.append(f"estimated {est['est_seconds']}s outside the ~6–8 min target")
+    custom = sum(1 for s in scenes if s.get("visual", {}).get("type") == "custom")
+    if custom < 4:
+        w.append(f"only {custom} custom (camera-man) scenes; key diagrams should be custom (aim 6–12)")
+    if not sb["closing_question"].strip().endswith("?"):
+        e.append("closing_question must be a question")
+    refs = sb.get("references", [])
+    if require_sources and not 3 <= len(refs) <= 8:
+        e.append(f"{len(refs)} references; need 3–8")
+    for r in refs:
+        if not URL_RE.match(r.get("url", "")):
+            e.append(f"reference URL must be https: {r.get('url')}")
+    return e, w
 
 
 def validate_storyboard(sb: dict, require_sources: bool = True) -> tuple[list[str], list[str]]:
     """Returns (errors, warnings). Errors block rendering."""
+    if is_long(sb):
+        return validate_long(sb, require_sources)
     e, w = [], []
     for k in ("video_id", "topic", "hooks", "titles", "scenes", "closing_question"):
         if k not in sb:
@@ -163,9 +258,9 @@ def validate_storyboard(sb: dict, require_sources: bool = True) -> tuple[list[st
     return e, w
 
 
-def validate_metadata(m: dict) -> list[str]:
+def validate_metadata(m: dict, long: bool = False) -> list[str]:
     """YouTube limits: title <= 100 chars, description <= 5000 bytes, tags <= 500 chars total,
-    no '<' or '>' in title/description."""
+    no '<' or '>' in title/description. long=True: a normal (16:9) video, never tagged #Shorts."""
     e = []
     t, d, tags = m.get("title", ""), m.get("description", ""), m.get("tags", [])
     if not t.strip() or len(t) > 100:
@@ -182,7 +277,11 @@ def validate_metadata(m: dict) -> list[str]:
         e.append("more than 15 hashtags (YouTube ignores all of them)")
     if not 3 <= len(tags_in_desc) <= 6:
         e.append(f"{len(tags_in_desc)} hashtags in the description; use 3–5 (the first 3 show above the title)")
-    if "#shorts" not in d.lower():
+    if long and not re.search(r"(?m)^0:00 ", d):
+        e.append("long-form description needs chapters starting at 0:00 (added by submit from the storyboard)")
+    if long and "#shorts" in d.lower():
+        e.append("long-form description must not include #Shorts")
+    elif not long and "#shorts" not in d.lower():
         e.append("description must include #Shorts")
     if not 8 <= len(tags) <= 15:
         e.append(f"{len(tags)} tags; use 8–15 (broad + specific)")

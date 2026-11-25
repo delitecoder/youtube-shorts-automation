@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import json
 import shutil
 import subprocess
@@ -15,7 +16,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from ..config import RUNTIME_DIR, theme_for
+from ..config import LONG_THEME, RUNTIME_DIR, SYSTEM_DESIGN_SYLLABUS, theme_for
 from ..integrations.drive import sha256_file
 from ..integrations.google_auth import MissingCredentials
 from ..production import storyboard as sbmod
@@ -23,7 +24,7 @@ from ..production.source_video import assess
 from ..publishing.schedule import free_slot, next_slot, rfc3339
 from ..research.validate import validate_research
 from ..state import ACTIVE_STATES, State, VideoRecord, iso, parse_iso, utcnow
-from ..store import log_error, next_video_id
+from ..store import is_long, log_error, next_video_id
 from .context import Ctx
 
 WORK = RUNTIME_DIR / "work"
@@ -90,8 +91,39 @@ def cmd_init(ctx: Ctx, a) -> int:
     return 0
 
 
+def _slug(t: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", t.lower()).strip("-")
+
+
+def _long_topic(ctx: Ctx) -> dict:
+    """Today's system-design topic: a ThemePlan row "long: <topic>" wins, else the first syllabus
+    topic not yet researched for a long video."""
+    try:
+        plan = ctx.store.rows("ThemePlan")
+    except Exception:
+        plan = []
+    today = _today_local(ctx)
+    from ..config import _plan_date
+    for row in reversed(plan):
+        th = str(row.get("theme", "")).strip()
+        if _plan_date(row.get("date", "")) == today and th.lower().startswith("long:"):
+            return {**LONG_THEME, "topic": th[5:].strip(), "details": row.get("details", ""), "source": "plan"}
+    try:
+        hist = ctx.store.rows("ResearchHistory")
+    except Exception:
+        hist = []
+    done = {_slug(h.get("topic", "")) for h in hist} | {h.get("topic_key", "") for h in hist}
+    for t in SYSTEM_DESIGN_SYLLABUS:
+        if _slug(t) not in done:
+            return {**LONG_THEME, "topic": t, "topic_key": _slug(t), "source": "syllabus"}
+    return {**LONG_THEME, "topic": "", "source": "syllabus finished: pick a new system-design topic "
+            "(a real product people use) not in ResearchHistory"}
+
+
 def cmd_discover(ctx: Ctx, a) -> int:
-    recs = ctx.store.all()
+    if getattr(a, "format", "short") == "long":
+        return _discover_long(ctx, a)
+    recs = [r for r in ctx.store.all() if not is_long(r.video_id)]
     # Unfinished production work (e.g. a run that ran out of tokens) is resumed first.
     resumable = [r for r in recs if r.state in PIPELINE_STATES]
     if resumable:
@@ -131,6 +163,22 @@ def cmd_discover(ctx: Ctx, a) -> int:
     return 0
 
 
+def _discover_long(ctx: Ctx, a) -> int:
+    recs = [r for r in ctx.store.all() if is_long(r.video_id)]
+    resumable = [r for r in recs if r.state in PIPELINE_STATES]
+    if resumable:
+        r = sorted(resumable, key=lambda x: x.video_id)[0]
+        out({"action": "resume", "format": "long", "video_id": r.video_id, "state": r.state.value,
+             "next": "python -m ytauto restore --video-id " + r.video_id})
+        return 0
+    today = _today_local(ctx).strftime("%Y%m%d")
+    if any(r.video_id.startswith(f"VIDEO-{today}-") for r in recs) and not a.force:
+        out({"action": "none", "format": "long", "reason": "already produced today's long video"})
+        return 0
+    out({"action": "research", "format": "long", "theme": _long_topic(ctx)})
+    return 0
+
+
 def _theme_today(ctx: Ctx) -> dict:
     try:
         plan = ctx.store.rows("ThemePlan")
@@ -139,14 +187,14 @@ def _theme_today(ctx: Ctx) -> dict:
     return theme_for(_today_local(ctx), plan)
 
 
-def _new_record(ctx: Ctx, source_type: str, source_file_id: str = "") -> VideoRecord:
-    vid = next_video_id([r.video_id for r in ctx.store.all()], utcnow(), ctx.s.timezone)
+def _new_record(ctx: Ctx, source_type: str, source_file_id: str = "", long: bool = False) -> VideoRecord:
+    vid = next_video_id([r.video_id for r in ctx.store.all()], utcnow(), ctx.s.timezone, long=long)
     return ctx.store.create(VideoRecord(video_id=vid, source_type=source_type,
                                         source_file_id=source_file_id))
 
 
 def cmd_new_item(ctx: Ctx, a) -> int:
-    rec = _new_record(ctx, "GENERATED", a.source_file_id or "")
+    rec = _new_record(ctx, "GENERATED", a.source_file_id or "", long=getattr(a, "format", "short") == "long")
     out({"video_id": rec.video_id, "state": rec.state.value})
     return 0
 
@@ -196,7 +244,8 @@ def cmd_doc_text(ctx: Ctx, a) -> int:
 def cmd_record_research(ctx: Ctx, a) -> int:
     r = load_json(a.file)
     rec = ctx.store.get(a.video_id)
-    errs, warns = validate_research(r, _today_local(ctx), ctx.store.rows("ResearchHistory"))
+    errs, warns = validate_research(r, _today_local(ctx), ctx.store.rows("ResearchHistory"),
+                                    long=is_long(a.video_id))
     if errs:
         out({"ok": False, "errors": errs, "warnings": warns})
         return 2
@@ -244,7 +293,12 @@ def cmd_render(ctx: Ctx, a) -> int:
     if rec.state != State.GENERATING:
         rec = ctx.store.transition(rec.video_id, rec.state, State.GENERATING, rec.version)
     wd.mkdir(parents=True, exist_ok=True)
-    full = sbmod.with_outro(sb, ctx.s.outro_text) if ctx.s.outro_enabled else sb
+    long_ = sbmod.is_long(sb)
+    if long_ != is_long(rec.video_id):
+        out({"ok": False, "error": "storyboard format does not match the video id (long ids are -101…-199)"})
+        return 2
+    outro = ctx.s.long_outro_text if long_ else ctx.s.outro_text
+    full = sbmod.with_outro(sb, outro) if ctx.s.outro_enabled else sb
     texts = [s["narration"] for s in full["scenes"]]
     try:
         clips, provider, fallbacks = synthesize_all(texts, wd, ctx.s, ctx.store,
@@ -261,7 +315,8 @@ def cmd_render(ctx: Ctx, a) -> int:
         out({"ok": False, "qc": report})
         return 2
     rec = ctx.store.transition(rec.video_id, State.GENERATING, State.QUALITY_CHECK, rec.version,
-                               duration_s=str(report["duration"]), width="1080", height="1920",
+                               duration_s=str(report["duration"]), width="1920" if long_ else "1080",
+                               height="1080" if long_ else "1920",
                                hook=sb["hooks"][sb["chosen_hook"]],
                                references=json.dumps(sb.get("references", [])),
                                quality_report=json.dumps({"render_qc": report}))
@@ -440,10 +495,15 @@ def cmd_submit(ctx: Ctx, a) -> int:
         out({"ok": False, "error": f"state is {rec.state.value}, need QUALITY_CHECK"})
         return 2
     meta, review = load_json(a.metadata), load_json(a.review)
+    long_ = is_long(rec.video_id)
+    if long_:                                   # YouTube chapters from the rendered timings
+        chs = _chapters_for(rec.video_id)
+        if chs and not re.search(r"(?m)^0:00 ", meta["description"]):
+            meta["description"] = meta["description"].rstrip() + "\n\nChapters\n" + chs + "\n"
     credits = _credits_block(rec.video_id)
     if credits and "Credits:" not in meta["description"]:
         meta["description"] = meta["description"].rstrip() + credits
-    errs = sbmod.validate_metadata(meta)
+    errs = sbmod.validate_metadata(meta, long=long_)
     if review.get("verdict") != "pass":
         errs.append("quality review verdict is not 'pass'")
     if errs:
@@ -451,14 +511,17 @@ def cmd_submit(ctx: Ctx, a) -> int:
         return 2
     now = utcnow()
     taken = {r.proposed_publish_at for r in ctx.store.all()
-             if r.video_id != rec.video_id and r.proposed_publish_at and r.state in
+             if r.video_id != rec.video_id and r.proposed_publish_at and is_long(r.video_id) == long_ and r.state in
              (State.AWAITING_APPROVAL, State.APPROVED, State.UPLOADING, State.SCHEDULED)}
     try:
         slots = json.loads(ctx.store.get_config("publish_slots", "") or "{}").get("slots")
     except ValueError:
         slots = None
-    slot = rfc3339(free_slot(now, taken, ctx.s.publish_time, ctx.s.timezone, ctx.s.min_lead_minutes,
-                             weekday_slots=slots))
+    if long_:
+        slot = rfc3339(free_slot(now, taken, ctx.s.long_publish_time, ctx.s.timezone, ctx.s.min_lead_minutes))
+    else:
+        slot = rfc3339(free_slot(now, taken, ctx.s.publish_time, ctx.s.timezone, ctx.s.min_lead_minutes,
+                                 weekday_slots=slots))
     qr = json.loads(rec.quality_report or "{}") | {"review": review}
     qr["youtube"] = {"category_id": str(meta.get("category_id", "28")), "made_for_kids": False,
                      "language": "en", "embeddable": True, "public_stats": True}
@@ -505,6 +568,18 @@ def cmd_submit(ctx: Ctx, a) -> int:
          "note": "Apps Script sends the approval email within ~5 minutes" if not ctx.s.dry_run
          else "DRY_RUN: no email will be sent"})
     return 0
+
+
+def _chapters_for(video_id: str) -> str:
+    wd = WORK / video_id
+    try:
+        sb = json.loads((wd / "storyboard.json").read_text())
+        timings = json.loads((wd / "timings.json").read_text())["timings"]
+    except (OSError, ValueError, KeyError):
+        return ""
+    chs = sbmod.chapters(sb, timings)
+    good = [c for k, c in enumerate(chs) if k == 0 or c[0] - chs[k - 1][0] >= 10]
+    return sbmod.chapter_block(good) if len(good) >= 3 else ""
 
 
 def _archive(ctx: Ctx, rec, done: list) -> None:
@@ -817,7 +892,9 @@ def main(argv=None) -> int:
     sub.add_parser("doctor")
     sub.add_parser("init")
     p = sub.add_parser("discover"); p.add_argument("--force", action="store_true")
+    p.add_argument("--format", choices=["short", "long"], default="short")
     p = sub.add_parser("new-item"); p.add_argument("--source-file-id")
+    p.add_argument("--format", choices=["short", "long"], default="short")
     p = sub.add_parser("prepare-existing"); p.add_argument("--file-id"); p.add_argument("--local-path")
     p.add_argument("--description")
     p = sub.add_parser("doc-text"); p.add_argument("--file-id", required=True); p.add_argument("--max-chars", type=int, default=20000)

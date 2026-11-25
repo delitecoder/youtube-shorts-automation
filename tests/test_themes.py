@@ -6,18 +6,20 @@ from ytauto.config import ALLOWED_CATEGORIES, CONTENT_ROTATION, CONTENT_THEMES, 
 from test_cli_and_service import run
 
 
-def test_rotation_covers_every_weekday_and_theme():
+def test_rotation_covers_every_weekday():
     assert len(CONTENT_ROTATION) == 7
-    assert set(CONTENT_ROTATION) == set(CONTENT_THEMES)
+    assert set(CONTENT_ROTATION) <= set(CONTENT_THEMES)
 
 
-def test_theme_for_weekdays():
+def test_shorts_are_daily_tech_news():
     monday = date(2026, 11, 23)
     keys = [theme_for(monday + timedelta(days=i))["key"] for i in range(7)]
-    assert keys == ["trending_search", "tech_story", "trending_news", "motivation",
-                    "trending_search", "tech_story", "trending_news"]
+    assert keys == ["trending_news"] * 7
     t = theme_for(date(2026, 11, 26))
-    assert t["label"] == "Tech Motivation" and t["brief"]
+    assert t["label"] == "Tech News" and t["brief"]
+    # a ThemePlan row still overrides one day
+    t = theme_for(date(2026, 11, 26), [{"date": "2026-11-26", "theme": "motivation"}])
+    assert t["key"] == "motivation"
 
 
 def test_new_categories_allowed():

@@ -67,11 +67,21 @@ class Store(Protocol):
 
 
 # ------------------------------------------------------------------ shared helpers
-def next_video_id(existing: Iterable[str], now: datetime, tz: str = "Asia/Kolkata") -> str:
+LONG_BASE = 100          # long-form videos: VIDEO-YYYYMMDD-101 … -199 (same id pattern, so the
+                         # approval gate and the Apps Script need no change); Shorts use 001 … 099
+
+
+def is_long(video_id: str) -> bool:
+    m = VIDEO_ID_RE.match(video_id or "")
+    return bool(m) and int(m.group(2)) > LONG_BASE
+
+
+def next_video_id(existing: Iterable[str], now: datetime, tz: str = "Asia/Kolkata", long: bool = False) -> str:
     day = now.astimezone(ZoneInfo(tz)).strftime("%Y%m%d")
-    nums = [int(m.group(2)) for v in existing if (m := VIDEO_ID_RE.match(v)) and m.group(1) == day]
-    n = max(nums, default=0) + 1
-    if n > 999:
+    nums = [int(m.group(2)) for v in existing if (m := VIDEO_ID_RE.match(v)) and m.group(1) == day
+            and (int(m.group(2)) > LONG_BASE) == long]
+    n = max(nums, default=LONG_BASE if long else 0) + 1
+    if n > (199 if long else 99):
         raise RuntimeError("video id space exhausted for today")
     return f"VIDEO-{day}-{n:03d}"
 

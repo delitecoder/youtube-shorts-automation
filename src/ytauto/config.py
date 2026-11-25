@@ -25,6 +25,7 @@ ALLOWED_CATEGORIES = (
     "general education",
     "tech stories",
     "motivation",
+    "system design",
 )
 
 # Daily content theme, by weekday in the channel timezone (Monday = 0). `discover` reports the
@@ -50,8 +51,49 @@ CONTENT_THEMES = {
                  "overcame failure, ending with one practical lesson for the viewer",
     },
 }
-CONTENT_ROTATION = ("trending_search", "tech_story", "trending_news", "motivation",
-                    "trending_search", "tech_story", "trending_news")   # Mon … Sun
+# Shorts: daily tech news (owner decision 2026-11-25; never repeat a story: ResearchHistory
+# topic_keys are passed to the researcher). A ThemePlan row still overrides a single day.
+CONTENT_ROTATION = ("trending_news",) * 7                               # Mon … Sun
+
+# Long-form (16:9, 6–8 min) daily system-design explainers, taught in this order; `discover
+# --format long` returns the first topic not yet in ResearchHistory. Owner can override per day
+# with a ThemePlan row whose theme starts with "long:" (e.g. "long: Design WhatsApp").
+SYSTEM_DESIGN_SYLLABUS = (
+    "What happens when you type a URL and press Enter",
+    "Client-server architecture and APIs",
+    "Vertical vs horizontal scaling",
+    "Load balancers",
+    "Caching and cache invalidation",
+    "CDNs: how Netflix and YouTube serve video fast",
+    "Database indexing",
+    "SQL vs NoSQL: how to choose",
+    "Database replication",
+    "Sharding and partitioning",
+    "Consistent hashing",
+    "CAP theorem in practice",
+    "Message queues and event-driven systems",
+    "Rate limiting",
+    "API gateways and reverse proxies",
+    "Microservices vs monolith",
+    "Design a URL shortener",
+    "Design a rate limiter",
+    "Design WhatsApp chat",
+    "Design Instagram feed",
+    "Design YouTube video upload and streaming",
+    "Design Uber ride matching",
+    "Design a notification system",
+    "Design Google Docs real-time collaboration",
+    "Design a web crawler",
+    "Design a distributed key-value store",
+    "Design a payment system",
+    "Design Twitter/X timeline",
+    "Design a search autocomplete",
+    "Design Netflix recommendations at scale",
+)
+LONG_THEME = {"key": "system_design", "label": "System Design",
+              "brief": "a system-design explainer for beginners-to-intermediate engineers: real-world "
+                       "hook, the problem, the naive design, why it breaks at scale, then the real "
+                       "design step by step with diagrams, trade-offs and a recap"}
 
 
 def theme_for(day, plan: list[dict] | None = None) -> dict:
@@ -143,6 +185,9 @@ class Settings:
     sfx_enabled: bool = True
     outro_enabled: bool = True
     outro_text: str = "If you learned something, subscribe for a new tech story every day."
+    long_publish_time: str = "17:30"         # long-form slot (Shorts: publish_time / peak-time)
+    long_outro_text: str = ("If this made system design click for you, subscribe. "
+                            "A new breakdown drops every day.")
     max_source_video_seconds: float = 180.0
     max_source_video_bytes: int = 2 * 1024**3
     spreadsheet_id: str = ""
@@ -183,6 +228,7 @@ class Settings:
             sfx_enabled=e.get("SFX_ENABLED", "true").lower() != "false",
             outro_enabled=e.get("OUTRO_ENABLED", "true").lower() != "false",
             outro_text=e.get("OUTRO_TEXT", cls.outro_text),
+            long_publish_time=e.get("LONG_PUBLISH_TIME", "17:30"),
             spreadsheet_id=e.get("SPREADSHEET_ID", ""),
             folders=folders,
             publisher_verify_gmail=e.get("PUBLISHER_VERIFY_GMAIL", "true").lower() != "false",

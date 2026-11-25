@@ -10,7 +10,8 @@ Read `docs/IMPLEMENTATION_STATUS.md` first when resuming development work.
   user's explicit authorisation in chat. Never enable paid APIs or infrastructure.
 - Never print, log, email or commit secrets. Never ask the user to paste credentials into chat.
 - Existing Drive videos are never edited, converted or re-encoded.
-- One content item per daily cycle. Stop when `discover` says `"action": "none"`.
+- Per day: one Short (10:07 IST run, `discover`) and one long-form video (03:47 IST run,
+  `discover --format long`). Never more of either. Stop when `discover` says `"action": "none"`.
 - Use Python commands for deterministic work; use subagents only for research, writing and review.
 
 ## Model routing (keep token use minimal)
@@ -133,6 +134,23 @@ belong to a different Python than `python` in fresh containers). Work files go i
 
 Finish with a 5-line summary: item, state, title, warnings, next step. Keep model output compact;
 pass JSON files between agents rather than long prose.
+
+## Long-form workflow (daily 03:47 IST scheduled task; 16:9 system-design explainer, 6–8 min)
+Same steps, rules and approval gate as the Short, with these differences:
+- `python -m ytauto discover --format long` → `resume` / `none` / `research` with `theme.topic` (the
+  next system-design syllabus topic, or a ThemePlan row `long: <topic>`). `new-item --format long`
+  gives an id `VIDEO-YYYYMMDD-101…` (long ids are > 100; the approval reply format is unchanged).
+- researcher: pass the exact topic and "format long" (4–8 sources, 12–25 facts).
+- storywriter: "format long" section of its instructions (hook in 15 s, a new open question every
+  60–90 s, chapters, 35–70 scenes, no #Shorts). `validate-storyboard` applies the long rules.
+- Director pass (you): 6–12 custom scenes for the key diagrams (canvas 1920×1080, see
+  scene-coder). Send briefs to scene-coder agents (several in parallel), then render.
+- `render` takes ~20–40 min (HyperFrames only, no Pillow fallback). Review with `frames`
+  (one sheet; look closely at custom scenes), fix code yourself, at most 2 rounds.
+- `submit` adds YouTube chapters (0:00 …) from the render timings and picks the 17:30 IST slot
+  (`LONG_PUBLISH_TIME`). The Apps Script uploads files > 45 MB in resumable 32 MB chunks.
+- Budget: if `budget` says go_lean, still make the video but use 4–6 custom scenes and one review.
+- Thumbnails are not set by the API here; YouTube picks a frame (the hook frame is designed for it).
 
 ## Development
 - Tests: `python -m pytest -q` (all mocked; `-m "not slow"` skips real renders).

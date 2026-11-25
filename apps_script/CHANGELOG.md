@@ -2,6 +2,16 @@
 
 The owner updates the script; Claude never pushes it. Newest first. Each entry = one SCRIPT_VERSION.
 
+## 2026.11.25-1
+- **Daily long video (16:9 system-design explainer, ids VIDEO-YYYYMMDD-101…199)** next to the Short.
+  Files over 45 MB are uploaded with YouTube's **resumable upload in 32 MB chunks** read straight
+  from Drive; before uploading, Drive's own SHA-256 of the file must equal the approved checksum.
+  A long upload can continue across 5-minute runs.
+- Approval email says "long video" or "Short"; skipped videos are only re-offered for a slot of the
+  same kind (a Short never replaces the long video and vice versa).
+- Approval rules and reply format unchanged. No new advanced service. Google may ask you to
+  re-authorise once (the script now calls the Drive/YouTube REST endpoints with its own token).
+
 ## 2026.11.24-4
 - All notification emails (upload confirmations, daily views audit, alerts, test messages, update
   notices) are now neat HTML: one colour-coded card per update, clickable links and a

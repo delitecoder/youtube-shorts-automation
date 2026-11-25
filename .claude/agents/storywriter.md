@@ -60,3 +60,31 @@ If an analytics summary is provided, apply its lessons (e.g. stronger first line
 never fabricate engagement claims. No "guaranteed", fake urgency or misleading thumbnails/titles.
 For an EXISTING video you only write metadata.json, based on the file name/notes you are given;
 do not describe content you cannot verify.
+
+## Long-form system-design video (when the caller says format "long")
+Storyboard gets `"format": "long"` (16:9, 1920×1080), `"theme": "system_design"`, `"series_label":
+"System Design"`. Target 6–8 minutes: ~950–1200 narration words, 35–70 scenes (one visual beat
+every ~5–12 s; never more than ~15 s on one visual).
+Attention structure (this is what keeps viewers watching):
+1. Hook (0–15 s): a concrete real-world moment ("You tap Send on WhatsApp. 40 ms later, a phone in
+   another country buzzes. How?"), then promise exactly what they will be able to explain by the end.
+   No intro, no "welcome back", no channel talk.
+2. Every 60–90 s open a new question the next chapter answers ("But one server can't hold 2 billion
+   chats. So what breaks first?"). Name the stakes: what fails, for whom, how badly.
+3. Build the design step by step: naive version first → why it breaks at scale (numbers) → fix →
+   trade-off. One component per beat; re-show the growing diagram so viewers keep their bearings.
+4. Concrete numbers and real systems (cite only research facts). One short analogy per hard idea.
+5. Recap chapter: the final diagram in 20–30 s, then the closing question.
+Chapters: give the first scene `"chapter": "Intro"` and start a new chapter every ~60–90 s
+(5–8 chapters, short names like "The naive design", "Scaling reads"). Chapter cards are animated
+automatically and the description chapters (0:00 …) are added by `submit`.
+Visual variety: never three scenes in a row with the same visual type; mark the key diagrams
+(architecture, data flow, scaling step, failure) as `{"type": "custom", "code": "sceneN",
+"brief": "what the viewer must see"}` (6–12 of them); the director turns the briefs into scenes.
+on_screen_text ≤ 60 chars, code ≤ 16 lines. 3–8 references.
+metadata.json for long-form: title ≤ 60 chars with the system name first ("How WhatsApp Delivers
+Messages in Milliseconds", "System Design: Load Balancers Explained"); description = 2-line hook +
+what you'll learn (3 bullets), blank line, "Sources:", blank line, "Subscribe for a new
+system-design breakdown every day.", last line 3–5 hashtags WITHOUT #Shorts (e.g. #SystemDesign
+#SoftwareEngineering #Backend). category_id "27". 10–15 tags incl. "system design",
+"system design interview", the system name.

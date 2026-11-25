@@ -272,6 +272,9 @@ def render(storyboard: dict, scene_audio: list[Path], workdir: Path, out_mp4: Pa
     from .storyboard import normalize
     workdir.mkdir(parents=True, exist_ok=True)
     storyboard = normalize(storyboard)
+    long_ = storyboard.get("format") == "long"
+    if long_ and engine == "pillow":
+        raise RuntimeError("long-form videos need the HyperFrames engine")
     scenes = storyboard["scenes"]
     images = {}
     for s in scenes:
@@ -304,8 +307,9 @@ def render(storyboard: dict, scene_audio: list[Path], workdir: Path, out_mp4: Pa
         try:
             proj = hfr.build(storyboard, timings, caps, workdir, top_label,
                              logo=f"assets/{brandmod.LOGO_NAME}" if logo_img else None)
-            hfr.render(proj, norm_wav, out_mp4, n_frames / FPS)
-            report = qc(out_mp4, timings)
+            hfr.render(proj, norm_wav, out_mp4, n_frames / FPS,
+                       timeout=7200 if long_ else 1800, crf=20 if long_ else 18)
+            report = qc(out_mp4, timings, long_=long_)
             report |= {"attributions": attributions, "engine": "hyperframes"}
             if report["ok"]:
                 (workdir / "timings.json").write_text(json.dumps({"timings": timings, "qc": report}, indent=1))
@@ -313,7 +317,7 @@ def render(storyboard: dict, scene_audio: list[Path], workdir: Path, out_mp4: Pa
             fallback_reason = f"hyperframes QC failed: {report['checks']}"
         except Exception as ex:  # noqa: BLE001 - fall back to the Pillow renderer
             fallback_reason = f"hyperframes: {str(ex)[:300]}"
-        if engine == "hyperframes":
+        if engine == "hyperframes" or long_:       # the Pillow renderer is vertical-only
             raise RuntimeError(fallback_reason)
     else:
         fallback_reason = ""
@@ -386,7 +390,7 @@ def render(storyboard: dict, scene_audio: list[Path], workdir: Path, out_mp4: Pa
     return report
 
 
-def qc(path: Path, timings: list[dict] | None = None) -> dict:
+def qc(path: Path, timings: list[dict] | None = None, long_: bool = False) -> dict:
     info = probe(path)
     a = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries",
                         "stream=duration", "-of", "csv=p=0", str(path)], capture_output=True, text=True)
@@ -395,14 +399,15 @@ def qc(path: Path, timings: list[dict] | None = None) -> dict:
     ad, vd = float(a.stdout.strip() or 0), float(v.stdout.strip() or 0)
     lufs = loudness_lufs(path)
     checks = {
-        "resolution_1080x1920": (info.width, info.height) == (W, H),
+        ("resolution_1920x1080" if long_ else "resolution_1080x1920"):
+            (info.width, info.height) == ((1920, 1080) if long_ else (W, H)),
         "fps_30": abs(info.fps - FPS) < 0.01,
         "h264": info.vcodec == "h264",
         "yuv420p": info.pix_fmt == "yuv420p",
         "aac": info.acodec == "aac",
         "audio_48k": info.sample_rate == 48000,
         "av_sync_within_100ms": abs(ad - vd) <= 0.1,
-        "duration_le_180s": info.duration <= 180,
+        ("duration_le_900s" if long_ else "duration_le_180s"): info.duration <= (900 if long_ else 180),
         "loudness_-14_pm2": lufs is not None and abs(lufs + 14) <= 2,
     }
     return {"ok": all(checks.values()), "checks": checks, "duration": round(info.duration, 2),

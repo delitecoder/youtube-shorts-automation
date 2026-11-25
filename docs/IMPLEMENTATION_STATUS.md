@@ -96,6 +96,19 @@ _Last updated: 2026-11-25_
   yt-dlp from the cloud is blocked by YouTube (429 / "sign in to confirm you're not a bot"); the
   owner downloads references on their PC and puts them in Drive 01_Inbox/References/Style.
 
+## Added (2026-11-25: two videos per day)
+- Shorts are now always daily tech news (never repeated: ResearchHistory topic_keys).
+- Daily long-form 16:9 system-design explainer (6–8 min): ids VIDEO-YYYYMMDD-101…199,
+  `discover/new-item --format long`, a 30-topic syllabus (ThemePlan "long: <topic>" overrides),
+  long storyboard rules (chapters, 35–70 scenes, pattern interrupts), 1920×1080 HyperFrames
+  layout with chapter titles + chapter cards, YouTube chapters added to the description by
+  `submit`, slot 17:30 IST (`LONG_PUBLISH_TIME`); Short stays at the 19:30/peak slot.
+- Colour styles rotate per video (5 palettes) so consecutive videos look different.
+- Apps Script 2026.11.25-1: resumable 32 MB chunked upload for files > 45 MB (Drive SHA-256 must
+  equal the approved checksum), continues across runs; re-offers only same-format skipped videos.
+- Scheduled task "Daily long-form system-design video" at 03:47 IST (Opus), separate usage window
+  from the 10:07 Short run.
+
 ## Test results
 `python -m pytest -q` → 140 passed (real renders, real Kokoro synthesis, Apps Script parity).
 Mutation check: removing the SENT-label check, request-time check, or checksum check makes tests fail.

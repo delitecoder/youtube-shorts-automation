@@ -21,9 +21,39 @@ import subprocess
 from pathlib import Path
 
 W, H, FPS = 1080, 1920, 30
+SIZES = {"short": (1080, 1920), "long": (1920, 1080)}
 ROOT = Path(__file__).resolve().parents[3]
 RENDERER_DIR = ROOT / "renderer" / "hyperframes"
 ACCENTS = ["#22d3ee", "#fbbf24", "#f472b6", "#a3e635"]
+# Colour styles, rotated per video (storyboard "palette" index wins) so consecutive videos look
+# different. Each: accents + stage background.
+PALETTES = [
+    {"name": "neon", "accents": ["#22d3ee", "#fbbf24", "#f472b6", "#a3e635"],
+     "bg": "radial-gradient(1200px 900px at 20% 10%,#1d2a5c 0%,transparent 60%),radial-gradient(900px 900px at 90% 80%,#3a1747 0%,transparent 60%),linear-gradient(#0a0e20,#151030)"},
+    {"name": "blueprint", "accents": ["#38bdf8", "#fbbf24", "#fb7185", "#e2e8f0"],
+     "bg": "radial-gradient(1400px 1000px at 50% 0%,#12305e 0%,transparent 65%),linear-gradient(#081428,#0b1d3a)"},
+    {"name": "ember", "accents": ["#fb923c", "#facc15", "#f87171", "#34d399"],
+     "bg": "radial-gradient(1100px 900px at 15% 15%,#3d1f12 0%,transparent 60%),radial-gradient(900px 800px at 85% 85%,#3a1230 0%,transparent 60%),linear-gradient(#120c0a,#1a0f14)"},
+    {"name": "mint", "accents": ["#34d399", "#60a5fa", "#f472b6", "#fde047"],
+     "bg": "radial-gradient(1200px 900px at 80% 10%,#0f3b3a 0%,transparent 60%),radial-gradient(900px 900px at 10% 90%,#13254a 0%,transparent 60%),linear-gradient(#071615,#0b1a24)"},
+    {"name": "violet", "accents": ["#a78bfa", "#22d3ee", "#f9a8d4", "#fcd34d"],
+     "bg": "radial-gradient(1200px 900px at 30% 0%,#2e1b5c 0%,transparent 60%),radial-gradient(900px 900px at 90% 90%,#0e3a4a 0%,transparent 60%),linear-gradient(#0d0a1f,#140f2b)"},
+]
+
+
+def palette_for(storyboard: dict) -> dict:
+    """Explicit storyboard "palette" (index or name) wins; else rotate by the video's date."""
+    p = storyboard.get("palette")
+    if isinstance(p, int):
+        return PALETTES[p % len(PALETTES)]
+    if isinstance(p, str):
+        for x in PALETTES:
+            if x["name"] == p:
+                return x
+    digits = "".join(ch for ch in storyboard.get("video_id", "") if ch.isdigit())
+    day = int(digits[:8]) if len(digits) >= 8 else 0
+    long_ = storyboard.get("format") == "long"
+    return PALETTES[(day + (2 if long_ else 0)) % len(PALETTES)]
 KEYWORDS = {"def", "return", "class", "import", "from", "for", "in", "if", "else", "while", "async",
             "await", "const", "let", "function", "True", "False", "None"}
 
@@ -148,7 +178,7 @@ def _visual(i: int, v: dict, t0: float, dur: float, accent: str, images: dict) -
     elif k == "subscribe":
         out = (f'<div class="sub"><div class="btn" id="{sid}btn">SUBSCRIBE</div>'
                f'<div class="btn done" id="{sid}done">SUBSCRIBED ✓</div>'
-               f'<div class="bell" id="{sid}bell">🔔</div><p id="{sid}t">A new tech story every day</p></div>')
+               f'<div class="bell" id="{sid}bell">🔔</div><p id="{sid}t">{e(v.get("text") or "A new tech story every day")}</p></div>')
         press = t0 + dur * 0.55
         js += [f'tl.from("#{sid}btn",{{scale:0,duration:0.5,ease:"back.out(2.5)"}},{t0 + 0.2:.3f});',
                f'tl.set("#{sid}done",{{opacity:0}},{t0:.3f});',
@@ -216,9 +246,46 @@ html,body{margin:0;background:#0a0e20}
 """
 
 
+CSS_LONG = """
+#stage{width:1920px;height:1080px}
+.scene{width:1920px;height:1080px}
+.top{left:60px;right:auto;top:44px;font-size:26px}.top.withlogo{left:140px}
+.logo{left:60px;top:28px;width:64px;height:64px;border-radius:14px}
+.chapters{display:none}
+.progress{top:0;height:6px;width:1920px}
+.chap{position:absolute;right:60px;top:40px;font-size:28px;font-weight:700;letter-spacing:2px;opacity:0;text-align:right}
+.chapcard{position:absolute;left:0;top:0;width:1920px;height:1080px;display:flex;flex-direction:column;justify-content:center;
+ align-items:center;opacity:0;background:rgba(5,8,20,.82)}
+.chapcard small{font-size:34px;letter-spacing:8px;color:#96a0be}.chapcard h2{font-size:96px;color:#fff;margin:18px 0 0;text-align:center;max-width:1600px}
+.chapcard i{display:block;height:10px;width:420px;border-radius:5px;margin-top:34px}
+.custom-full{left:0;top:110px;width:1920px;height:800px}
+.head{left:120px;right:120px;top:120px;font-size:54px}
+.vis{left:160px;right:160px;top:240px;height:640px}
+.title h1{font-size:88px;margin:90px 0 0}
+.bullets li{font-size:50px;margin:0 0 46px 0}
+.diagram{flex-direction:row;justify-content:center;margin-top:180px}
+.node{width:auto;min-width:220px;max-width:360px;font-size:40px;padding:30px 24px}
+.arrow{width:70px;height:8px;margin:0 6px}
+.stat{margin-top:90px}
+.card{min-height:440px}
+.timeline .line{height:560px}
+.imgwrap{left:200px;right:200px;height:600px}.imgcap{left:200px;top:610px}
+.code{font-size:36px;max-width:1300px;margin:20px auto 0}
+.question{margin-top:90px}
+.sub{margin-top:90px}
+.cap{left:160px;right:160px;top:930px;font-size:46px}
+"""
+
+
 def build(storyboard: dict, timings: list[dict], caps: list[dict], workdir: Path,
           series_label: str = "TECH IN 60s", logo: str | None = None) -> Path:
-    """Write <workdir>/hf/index.html (+ gsap + assets) and return the project dir."""
+    """Write <workdir>/hf/index.html (+ gsap + assets) and return the project dir.
+    storyboard["format"] == "long" → 1920×1080 layout with chapter titles and chapter cards."""
+    global ACCENTS
+    long_ = storyboard.get("format") == "long"
+    w_px, h_px = SIZES["long" if long_ else "short"]
+    pal = palette_for(storyboard)
+    ACCENTS = list(pal["accents"])
     proj = workdir / "hf"
     if proj.exists():
         shutil.rmtree(proj)
@@ -236,7 +303,7 @@ def build(storyboard: dict, timings: list[dict], caps: list[dict], workdir: Path
     body.append('<div class="grid" id="grid"></div>')
     js.append(f'tl.to("#grid",{{y:60,duration:{duration:.2f},ease:"none"}},0);')
     for p in range(14):
-        x, y, col = rnd.randint(40, 1040), rnd.randint(200, 1800), ACCENTS[p % 4]
+        x, y, col = rnd.randint(40, w_px - 40), rnd.randint(120, h_px - 120), ACCENTS[p % 4]
         body.append(f'<div class="particle" id="p{p}" style="left:{x}px;top:{y}px;background:{col}"></div>')
         js.append(f'tl.to("#p{p}",{{y:-{rnd.randint(120, 380)},x:{rnd.randint(-60, 60)},opacity:{rnd.uniform(.2, .8):.2f},'
                   f'duration:{duration:.2f},ease:"sine.inOut"}},0);')
@@ -251,6 +318,22 @@ def build(storyboard: dict, timings: list[dict], caps: list[dict], workdir: Path
     for k, tm in enumerate(timings):
         js.append(f'tl.set("#ch{k}",{{background:"{ACCENTS[k % 4]}"}},{tm["start"]:.3f});')
     body.append(f'<div class="progress" id="prog" style="background:{ACCENTS[0]}"></div>')
+    if long_:                                   # chapter title (top right) + full-screen chapter card
+        from .storyboard import chapters as _chapters
+        chs = _chapters(storyboard, timings)
+        for k, (cs, title) in enumerate(chs):
+            ce = chs[k + 1][0] if k + 1 < len(chs) else duration
+            col = ACCENTS[k % 4]
+            body.append(f'<div class="chap" id="chp{k}" style="color:{col}">{e(title.upper())}</div>')
+            js.append(f'tl.to("#chp{k}",{{opacity:1,duration:0.3}},{cs:.3f});')
+            js.append(f'tl.to("#chp{k}",{{opacity:0,duration:0.2}},{max(cs, ce - 0.2):.3f});')
+            if k > 0:                           # chapter break: 1.4 s card, a pattern interrupt
+                body.append(f'<div class="chapcard" id="cc{k}"><small>CHAPTER {k + 1}</small>'
+                            f'<h2>{e(title)}</h2><i id="cci{k}" style="background:{col}"></i></div>')
+                js += [f'tl.to("#cc{k}",{{opacity:1,duration:0.25}},{cs:.3f});',
+                       f'tl.from("#cc{k} h2",{{y:60,opacity:0,duration:0.45,ease:"power3.out"}},{cs + 0.1:.3f});',
+                       f'tl.from("#cci{k}",{{scaleX:0,duration:0.6,ease:"power3.out"}},{cs + 0.2:.3f});',
+                       f'tl.to("#cc{k}",{{opacity:0,duration:0.3}},{cs + 1.4:.3f});']
     js.append(f'tl.fromTo("#prog",{{scaleX:0}},{{scaleX:1,duration:{duration:.2f},ease:"none"}},0);')
 
     custom_report: list[dict] = []
@@ -299,9 +382,12 @@ def build(storyboard: dict, timings: list[dict], caps: list[dict], workdir: Path
             js.append(f'tl.to("#c{c_i}w{j}",{{color:"{ACCENTS[si % 4]}",scale:1.12,duration:0.08}},{w[1]:.3f});')
             js.append(f'tl.to("#c{c_i}w{j}",{{color:"#ffffff",scale:1,duration:0.08}},{w[2]:.3f});')
 
-    doc = (f'<!doctype html><html><head><meta charset="utf-8"><style>{CSS}</style></head><body>'
+    css = CSS.replace("background:radial-gradient(1200px 900px at 20% 10%,#1d2a5c 0%,transparent 60%),"
+                      "radial-gradient(900px 900px at 90% 80%,#3a1747 0%,transparent 60%),linear-gradient(#0a0e20,#151030);",
+                      f"background:{pal['bg']};") + (CSS_LONG if long_ else "")
+    doc = (f'<!doctype html><html><head><meta charset="utf-8"><style>{css}</style></head><body>'
            f'<div id="stage" data-composition-id="main" data-start="0" data-duration="{duration:.3f}" '
-           f'data-width="{W}" data-height="{H}" data-fps="{FPS}">{"".join(body)}</div>'
+           f'data-width="{w_px}" data-height="{h_px}" data-fps="{FPS}">{"".join(body)}</div>'
            f'<script src="gsap.min.js"></script><script>const tl=gsap.timeline({{paused:true}});\n'
            + "\n".join(js) +
            '\ntl.set({}, {}, ' + f'{duration:.3f}' + ');\nwindow.__timelines=window.__timelines||{};window.__timelines.main=tl;</script>'
@@ -313,7 +399,8 @@ def build(storyboard: dict, timings: list[dict], caps: list[dict], workdir: Path
     return proj
 
 
-def render(proj: Path, audio_wav: Path, out_mp4: Path, duration: float, timeout: int = 1800) -> None:
+def render(proj: Path, audio_wav: Path, out_mp4: Path, duration: float, timeout: int = 1800,
+           crf: int = 18) -> None:
     if not available():
         raise HyperframesUnavailable("run: npm ci --prefix renderer/hyperframes")
     hf = str(RENDERER_DIR / "node_modules" / ".bin" / "hyperframes")
@@ -324,6 +411,6 @@ def render(proj: Path, audio_wav: Path, out_mp4: Path, duration: float, timeout:
     if r.returncode != 0 or not silent.exists():
         raise RuntimeError(f"hyperframes render failed: {(r.stderr or r.stdout)[-400:]}")
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(silent), "-i", str(audio_wav), "-map", "0:v", "-map", "1:a",
-                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", "-profile:v", "high",
+                    "-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf), "-pix_fmt", "yuv420p", "-profile:v", "high",
                     "-r", str(FPS), "-g", "60", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
                     "-t", f"{duration:.3f}", "-movflags", "+faststart", str(out_mp4)], check=True)
