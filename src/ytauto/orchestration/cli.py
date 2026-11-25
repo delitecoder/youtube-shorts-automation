@@ -95,7 +95,20 @@ def _slug(t: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", t.lower()).strip("-")
 
 
-def _long_topic(ctx: Ctx) -> dict:
+def rank_topics(topics: list[str], insights: dict) -> tuple[str, int]:
+    """First topic with the most word overlap with viewers' search terms / suggested-next-to
+    titles; ties keep syllabus order. Returns (topic, score)."""
+    def toks(x):
+        return {w.rstrip("s") for w in re.findall(r"[a-z0-9]+", x.lower()) if len(w) > 3}
+    words = set()
+    for x in insights.get("search_terms", []) + insights.get("suggested_next_to", []):
+        words |= toks(x)
+    stop = {"design", "system", "what", "when", "with", "from", "your", "into", "pres", "happen", "type"}
+    score, _, t = max((len((toks(t) - stop) & words), -k, t) for k, t in enumerate(topics))
+    return t, score
+
+
+def _long_topic(ctx: Ctx, insights: dict | None = None) -> dict:
     """Today's system-design topic: a ThemePlan row "long: <topic>" wins, else the first syllabus
     topic not yet researched for a long video."""
     try:
@@ -113,9 +126,12 @@ def _long_topic(ctx: Ctx) -> dict:
     except Exception:
         hist = []
     done = {_slug(h.get("topic", "")) for h in hist} | {h.get("topic_key", "") for h in hist}
-    for t in SYSTEM_DESIGN_SYLLABUS:
-        if _slug(t) not in done:
-            return {**LONG_THEME, "topic": t, "topic_key": _slug(t), "source": "syllabus"}
+    left = [t for t in SYSTEM_DESIGN_SYLLABUS if _slug(t) not in done]
+    if left:
+        # Audience first: a remaining topic that matches what viewers search for / watch next to us
+        t, score = rank_topics(left, insights or {})
+        return {**LONG_THEME, "topic": t, "topic_key": _slug(t),
+                "source": "audience match" if score else "syllabus order"}
     return {**LONG_THEME, "topic": "", "source": "syllabus finished: pick a new system-design topic "
             "(a real product people use) not in ResearchHistory"}
 
@@ -156,10 +172,10 @@ def cmd_discover(ctx: Ctx, a) -> int:
         if not ctx.s.dry_run:
             raise
         out({"action": "research", "note": f"Drive unavailable in dry run: {e}",
-             "theme": _theme_today(ctx)})
+             "theme": _theme_today(ctx), "insights": _insights(ctx)})
         return 0
     out({"action": "research", "note": "no unprocessed Drive items",
-         "theme": _theme_today(ctx)})
+         "theme": _theme_today(ctx), "insights": _insights(ctx)})
     return 0
 
 
@@ -175,7 +191,8 @@ def _discover_long(ctx: Ctx, a) -> int:
     if any(r.video_id.startswith(f"VIDEO-{today}-") for r in recs) and not a.force:
         out({"action": "none", "format": "long", "reason": "already produced today's long video"})
         return 0
-    out({"action": "research", "format": "long", "theme": _long_topic(ctx)})
+    ins = _insights(ctx)
+    out({"action": "research", "format": "long", "theme": _long_topic(ctx, ins), "insights": ins})
     return 0
 
 
@@ -324,6 +341,28 @@ def cmd_render(ctx: Ctx, a) -> int:
          "engine": report.get("engine"), "fallback_reason": report.get("fallback_reason", ""),
          "fallbacks": fallbacks, "qc": {k: report[k] for k in ("ok", "duration", "lufs")},
          "tts_chars": sum(len(t) for t in texts)})
+    return 0
+
+
+def cmd_voice(ctx: Ctx, a) -> int:
+    """Create the narration voice on its own (before render). Clips are cached by exact text, so
+    `render` re-uses them and only changed scenes ever cost characters again."""
+    from ..integrations.tts import TTSBudget, clean_text, synthesize_all
+    sb = load_json(a.storyboard)
+    rec = ctx.store.get(a.video_id)
+    wd = WORK / rec.video_id
+    wd.mkdir(parents=True, exist_ok=True)
+    long_ = sbmod.is_long(sb)
+    full = sbmod.with_outro(sb, ctx.s.long_outro_text if long_ else ctx.s.outro_text) if ctx.s.outro_enabled else sb
+    texts = [s["narration"] for s in full["scenes"]]
+    budget = TTSBudget(ctx.store, ctx.s.tts_monthly_char_budget)
+    before = budget.used()
+    clips, provider, fallbacks = synthesize_all(texts, wd, ctx.s, ctx.store, log=lambda m: print(m, file=sys.stderr))
+    used = budget.used()
+    out({"ok": True, "voice": provider, "fallbacks": fallbacks, "clips": len(clips),
+         "video_chars": sum(len(clean_text(t)) for t in texts), "chars_billed_now": used - before,
+         "month_used": used, "month_limit": ctx.s.tts_monthly_char_budget,
+         "google_free_tier": 1_000_000})
     return 0
 
 
@@ -744,20 +783,45 @@ def cmd_frames(ctx: Ctx, a) -> int:
     return 0
 
 
-def cmd_audit(ctx: Ctx, a) -> int:
-    """Daily views audit: analyse the channel, store guidance for the storywriter, email the owner."""
+def _run_audit(ctx: Ctx) -> dict:
     from ..analytics import audit as au
     ours = {r.youtube_video_id for r in ctx.store.all() if r.youtube_video_id}
     rep = au.collect(ctx.yt_analytics, ctx.youtube, _today_local(ctx), ours)
     res = au.analyse(rep)
     ctx.store.set_config("last_audit", json.dumps(res)[:45000])
+    return res
+
+
+def _insights(ctx: Ctx) -> dict:
+    """Today's audience insights (runs the audit first if today's is missing). Every new video
+    is planned from these: search terms viewers use, videos we are suggested next to, what works."""
+    today = _today_local(ctx).isoformat()
+    try:
+        res = json.loads(ctx.store.get_config("last_audit", "") or "{}")
+    except ValueError:
+        res = {}
+    if res.get("date") != today:
+        try:
+            res = _run_audit(ctx)
+        except Exception as e:  # noqa: BLE001 - no analytics access (dry run / no channel yet)
+            return {"available": False, "reason": f"audit failed: {str(e)[:160]}"}
+    sig = res.get("topic_signals", {})
+    return {"available": True, "date": res.get("date"), "search_terms": sig.get("search_terms", []),
+            "suggested_next_to": sig.get("suggested_next_to", []), "by_format": sig.get("by_format", {}),
+            "suggestions": res.get("suggestions", []), "guidance": res.get("guidance", {})}
+
+
+def cmd_audit(ctx: Ctx, a) -> int:
+    """Daily views audit: analyse the channel, store guidance for the storywriter, email the owner."""
+    from ..analytics import audit as au
+    res = _run_audit(ctx)
     today = _today_local(ctx).isoformat()
     if a.email and ctx.store.get_config("audit_emailed", "") != today:
         log_error(ctx.store, "audit", au.email_text(res), "", "AUDIT")
         ctx.store.set_config("audit_emailed", today)
     # compact output for the orchestrator/storywriter (keeps tokens low)
     out({"trend": res["trend"], "channel_median": res.get("channel_median"), "suggestions": res["suggestions"],
-         "guidance": res["guidance"], "top": res.get("top", [])[:3]})
+         "guidance": res["guidance"], "top": res.get("top", [])[:3], "topic_signals": res.get("topic_signals")})
     return 0
 
 
@@ -904,6 +968,7 @@ def main(argv=None) -> int:
     p.add_argument("--document-based", action="store_true")
     p = sub.add_parser("submit"); p.add_argument("--video-id", required=True); p.add_argument("--metadata", required=True)
     p.add_argument("--review", required=True); p.add_argument("--video")
+    p = sub.add_parser("voice"); p.add_argument("--video-id", required=True); p.add_argument("--storyboard", required=True)
     p = sub.add_parser("resolve-images"); p.add_argument("--storyboard", required=True)
     p = sub.add_parser("fetch-asset"); p.add_argument("--video-id", required=True); p.add_argument("--file-id", required=True)
     p.add_argument("--name", required=True)

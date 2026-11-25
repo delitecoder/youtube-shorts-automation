@@ -23,7 +23,7 @@
 
 // Bump on every change and add an entry to apps_script/CHANGELOG.md: the daily run compares this
 // with the deployed version and emails the approver when an update is needed.
-var SCRIPT_VERSION = '2026.11.25-1';
+var SCRIPT_VERSION = '2026.11.25-2';
 var TTL_HOURS = 24;
 var SLOT_MARGIN_MIN = 15;            // approvals must arrive this long before the publish slot
 var MAX_UPLOAD_BYTES = 45 * 1024 * 1024;   // Apps Script blob limit: bigger files use the chunked upload
@@ -526,7 +526,9 @@ function uploadApproved_(ss) {
       if (props_().getProperty('SYNTHETIC_MEDIA') === 'true') status.containsSyntheticMedia = true;
       if (publishAt) status.publishAt = publishAt;
       var resource = { snippet: { title: sn.title, description: sn.description, tags: tags,
-        categoryId: sn.category_id || '28', defaultLanguage: 'en', defaultAudioLanguage: 'en' }, status: status };
+        categoryId: sn.category_id || '28', defaultLanguage: 'en', defaultAudioLanguage: 'en' }, status: status,
+        // since 2026-11-03 YouTube no longer assumes "no paid placement": declare it explicitly
+        paidProductPlacementDetails: { hasPaidProductPlacement: false } };
       if (file.getSize() > MAX_UPLOAD_BYTES) {
         // Big (long-form) file: Drive's own SHA-256 of the stored file must equal the approved one,
         // then a resumable upload in chunks that continues across 5-minute runs if needed.
@@ -540,7 +542,7 @@ function uploadApproved_(ss) {
       var blob = file.getBlob();
       var digest = hex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, blob.getBytes()));
       if (digest !== sn.sha256) throw 'checksum mismatch: the file changed after approval';
-      var res = YouTube.Videos.insert(resource, 'snippet,status', blob);
+      var res = YouTube.Videos.insert(resource, 'snippet,status,paidProductPlacementDetails', blob);
       uploaded_(ss, vid, sn, cur, res.id, publishAt);
     } catch (e) {
       casUpdate_(ss, vid, 'UPLOADING', cur.version, { state: 'NEEDS_MANUAL_REVIEW', notes: String(e).slice(0, 400) });
@@ -579,7 +581,7 @@ function continueChunked_(ss, r) {
     if (st.publish_at && new Date(st.publish_at).getTime() - Date.now() < 5 * 60e3)
       throw 'the publish slot arrived before the upload finished';
     if (!st.url) {
-      var init = UrlFetchApp.fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status', {
+      var init = UrlFetchApp.fetch('https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status,paidProductPlacementDetails', {
         method: 'post', contentType: 'application/json; charset=UTF-8', payload: JSON.stringify(st.resource),
         headers: { Authorization: 'Bearer ' + token, 'X-Upload-Content-Length': String(st.size),
                    'X-Upload-Content-Type': 'video/mp4' }, muteHttpExceptions: true });

@@ -52,6 +52,9 @@ def collect(yta, yt, today: date, pipeline_ids: set[str]) -> dict:
     for i in range(0, len(ids), 50):
         for it in yt.svc.videos().list(part="snippet,contentDetails", id=",".join(ids[i:i + 50])).execute().get("items", []):
             titles[it["id"]] = {"title": it["snippet"]["title"], "published": it["snippet"]["publishedAt"][:10]}
+    for i in range(0, len(ids), 50):
+        for it in yt.svc.videos().list(part="contentDetails", id=",".join(ids[i:i + 50])).execute().get("items", []):
+            titles.setdefault(it["id"], {})["format"] = "long" if _secs(it["contentDetails"].get("duration", "")) > 180 else "short"
     for v in vids:
         v.update(titles.get(v["video"], {}))
         v["ours"] = v["video"] in pipeline_ids
@@ -59,7 +62,75 @@ def collect(yta, yt, today: date, pipeline_ids: set[str]) -> dict:
     rep["traffic"] = {r["insightTrafficSourceType"]: r["views"] for r in _rows(_q(
         yta, startDate=str(d - timedelta(days=27)), endDate=str(d), metrics="views",
         dimensions="insightTrafficSourceType", sort="-views"))}
+    # What viewers typed into YouTube search before watching us (exact terms, last 28 days)
+    rep["search_terms"] = [{"term": r["insightTrafficSourceDetail"], "views": r["views"]} for r in _rows(_q(
+        yta, startDate=str(d - timedelta(days=27)), endDate=str(d), metrics="views",
+        dimensions="insightTrafficSourceDetail", filters="insightTrafficSourceType==YT_SEARCH",
+        sort="-views", maxResults=25))]
+    # Videos next to which YouTube suggested ours (= topics our audience also watches)
+    rel = _rows(_q(yta, startDate=str(d - timedelta(days=27)), endDate=str(d), metrics="views",
+                   dimensions="insightTrafficSourceDetail", filters="insightTrafficSourceType==RELATED_VIDEO",
+                   sort="-views", maxResults=25))
+    rel_titles = {}
+    ids = [r["insightTrafficSourceDetail"] for r in rel][:25]
+    if ids:
+        try:
+            for it in yt.svc.videos().list(part="snippet", id=",".join(ids)).execute().get("items", []):
+                rel_titles[it["id"]] = it["snippet"]["title"]
+        except Exception:  # noqa: BLE001
+            pass
+    rep["suggested_next_to"] = [{"title": rel_titles[r["insightTrafficSourceDetail"]], "views": r["views"]}
+                                for r in rel if r["insightTrafficSourceDetail"] in rel_titles]
     return rep
+
+
+def _secs(iso: str) -> int:
+    import re
+    m = re.match(r"P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", iso or "")
+    if not m:
+        return 0
+    d, h, mi, se = (int(x or 0) for x in m.groups())
+    return d * 86400 + h * 3600 + mi * 60 + se
+
+
+TECH_WORDS = {
+    "ai", "app", "apps", "api", "apis", "code", "coding", "coder", "program", "programming", "python", "java",
+    "javascript", "flutter", "dart", "sql", "database", "db", "data", "system", "design", "software",
+    "developer", "dev", "tech", "technology", "computer", "server", "cloud", "aws", "azure", "google",
+    "openai", "chatgpt", "gpt", "claude", "anthropic", "llm", "ml", "machine", "learning", "model",
+    "android", "ios", "iphone", "web", "website", "html", "css", "react", "node", "linux", "git",
+    "github", "docker", "kubernetes", "cache", "network", "internet", "cyber", "security", "hacking",
+    "robot", "chip", "nvidia", "apple", "microsoft", "meta", "startup", "interview", "algorithm",
+    "news", "gadget", "laptop", "phone", "mobile", "blockchain", "crypto", "store", "online",
+    "builder", "tutorial", "engineer", "engineering", "backend", "frontend", "devops", "ipo",
+    "balancer", "hashing", "scaling", "scale", "queue", "kafka", "redis", "microservice", "microservices",
+    "url", "dns", "http", "https", "cdn", "sharding", "replication", "latency", "distributed", "whatsapp",
+    "uber", "netflix", "instagram", "twitter", "architecture",
+}
+
+
+def is_tech(term: str) -> bool:
+    import re
+    return bool(set(re.findall(r"[a-z0-9]+", term.lower())) & TECH_WORDS)
+
+
+def topic_signals(rep: dict) -> dict:
+    """Compact, factual audience signals for choosing and wording the next topic."""
+    vids = rep.get("videos", [])
+    by_fmt = {}
+    for f in ("short", "long"):
+        vs = sorted([v for v in vids if v.get("format", "short") == f],
+                    key=lambda v: (v["views"], v["averageViewPercentage"]), reverse=True)
+        if vs:
+            by_fmt[f] = {"best": [{"title": v.get("title", "")[:80], "views": v["views"],
+                                   "avg_view_pct": round(v["averageViewPercentage"], 1)} for v in vs[:3]],
+                         "weakest": [v.get("title", "")[:80] for v in vs[-2:]] if len(vs) > 3 else []}
+    terms = [t["term"] for t in rep.get("search_terms", [])]
+    return {"search_terms": [t for t in terms if is_tech(t)][:15],
+            # searches unrelated to tech (e.g. old non-tech uploads still attract them): reported, never planned on
+            "other_searches": [t for t in terms if not is_tech(t)][:8],
+            "suggested_next_to": [t["title"][:90] for t in rep.get("suggested_next_to", [])[:10]],
+            "by_format": by_fmt}
 
 
 def _pct(a, b):
@@ -68,7 +139,17 @@ def _pct(a, b):
 
 def analyse(rep: dict) -> dict:
     vids = rep.get("videos", [])
-    out = {"date": rep["date"], "trend": {}, "top": [], "bottom": [], "suggestions": [], "guidance": {}}
+    out = {"date": rep["date"], "trend": {}, "top": [], "bottom": [], "suggestions": [], "guidance": {},
+           "topic_signals": topic_signals(rep)}
+    sig = out["topic_signals"]
+    if sig["search_terms"]:
+        out["suggestions"].append("Viewers find us by searching: " + ", ".join(sig["search_terms"][:5]) +
+                                  ". Use these exact words in titles, first lines and tags when they fit the topic.")
+        out["guidance"]["audience_terms"] = sig["search_terms"][:10]
+    if sig["suggested_next_to"]:
+        out["suggestions"].append("YouTube recommends us next to: " + "; ".join(sig["suggested_next_to"][:3]) +
+                                  ". Topics close to these reach the same viewers.")
+        out["guidance"]["adjacent_topics"] = sig["suggested_next_to"][:5]
     for k in ("views", "estimatedMinutesWatched", "subscribersGained"):
         out["trend"][f"{k}_7d"] = rep.get("last7", {}).get(k)
         out["trend"][f"{k}_7d_change_pct"] = _pct(rep.get("last7", {}).get(k, 0), rep.get("prev7", {}).get(k, 0))

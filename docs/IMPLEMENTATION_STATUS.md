@@ -109,6 +109,18 @@ _Last updated: 2026-11-25_
 - Scheduled task "Daily long-form system-design video" at 03:47 IST (Opus), separate usage window
   from the 10:07 Short run.
 
+## Added (2026-11-25: free voice, audience-driven topics)
+- Voice stays free: Chirp 3 HD free tier = 1M chars/month (spaces count). Budget default 600k,
+  hard cap 900k; per-video caps (Short 1,000 / long 8,000 chars); whitespace collapsed; voice clips
+  cached by exact text (re-renders/resumes cost 0); separate `ytauto voice` step.
+- `discover` attaches `insights` (runs today's audit if missing): viewers' YouTube search terms
+  (tech-related only; off-topic searches reported separately), videos YouTube suggests us next to,
+  best/weakest per format. Long topic = syllabus topic that best matches these signals.
+- Uploads declare paidProductPlacementDetails.hasPaidProductPlacement=false (YouTube stopped
+  defaulting it on 2026-11-03). Apps Script 2026.11.25-2.
+- YouTube Data API quota (checked 2026-11-25): videos.insert has its own bucket of 100 calls/day
+  (1 unit each); 10,000 units/day for all other endpoints. We use 2 uploads/day.
+
 ## Test results
 `python -m pytest -q` → 140 passed (real renders, real Kokoro synthesis, Apps Script parity).
 Mutation check: removing the SENT-label check, request-time check, or checksum check makes tests fail.

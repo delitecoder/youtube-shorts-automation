@@ -46,6 +46,8 @@ def build_body(req: UploadRequest) -> dict:
                     "categoryId": req.category_id, "defaultLanguage": req.language,
                     "defaultAudioLanguage": req.language},
         "status": status,
+        # Since 2026-11-03 YouTube no longer assumes "no paid placement": declare it explicitly.
+        "paidProductPlacementDetails": {"hasPaidProductPlacement": False},
     }
 
 
@@ -93,7 +95,7 @@ class YouTube:
 
         media = MediaFileUpload(str(req.path), mimetype="video/*", resumable=True,
                                 chunksize=8 * 1024 * 1024)
-        request = self.svc.videos().insert(part="snippet,status", body=build_body(req),
+        request = self.svc.videos().insert(part="snippet,status,paidProductPlacementDetails", body=build_body(req),
                                            media_body=media, notifySubscribers=True)
         return run_resumable(request, log=log)
 

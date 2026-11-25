@@ -91,10 +91,13 @@ belong to a different Python than `python` in fresh containers). Work files go i
    - `document`: `python -m ytauto new-item --source-file-id <id>` →
      `python -m ytauto doc-text --file-id <id>` → continue with step 5 (source_type drive_document).
    - `research`: `python -m ytauto new-item` → step 5. The output's `theme` is today's content
-     theme (weekday rotation in IST, `CONTENT_ROTATION` in src/ytauto/config.py: Mon/Fri trending
-     tech searches, Tue/Sat tech story, Wed/Sun tech news, Thu tech motivation). A row for today in
-     the sheet tab `ThemePlan` (date, theme, details) overrides it (`theme.source`). Pass the whole
-     `theme` to the researcher and storywriter.
+     theme (Shorts: daily tech news, never repeated). A row for today in the sheet tab `ThemePlan`
+     (date, theme, details) overrides it (`theme.source`). Pass the whole `theme` AND `insights`
+     to the researcher and storywriter.
+   - ALWAYS plan from `insights` (discover runs today's analytics audit itself if missing): the
+     exact search terms viewers used to find us, the videos YouTube suggests us next to, and the
+     best/weakest videos per format. If `insights.available` is false (no data yet), say so in the
+     summary and continue with the theme.
 5. **researcher** (haiku) → `research.json` (give it the day's `theme` and ResearchHistory topic_keys to avoid) →
    `python -m ytauto record-research --video-id … --file research.json` (fix and retry once on errors).
    After EVERY step from here on: `python -m ytauto checkpoint --video-id …` (saves work to Drive so
@@ -113,7 +116,12 @@ belong to a different Python than `python` in fresh containers). Work files go i
    and set those scenes' visual to `{"type": "custom", "code": "sceneN"}` (add `"full_frame": true`
    for big diagrams). Send each brief to the **scene-coder** (Sonnet) agent with the video id, the
    scene name and its id prefix `s<index0>-` (scene 1 → `s0-`). Style reference: docs/STYLE_REFERENCE.md.
-8. `python -m ytauto render --video-id … --storyboard storyboard.json` (QC must be ok). The HyperFrames
+7c. Voice first, separately: `python -m ytauto voice --video-id … --storyboard storyboard.json`
+   (Google Chirp 3 HD within the free tier: ≤ 1,000 chars per Short, ≤ 8,000 per long video,
+   monthly cap 600k ≤ 90 % of the 1M free characters; clips are cached by exact text so re-renders
+   and resumes cost 0 characters; over budget → free offline Kokoro voice for the whole video).
+8. `python -m ytauto render --video-id … --storyboard storyboard.json` (QC must be ok; it re-uses
+   the cached voice). The HyperFrames
    engine (animated HTML/GSAP: transitions, kinetic text, particles, light sweeps, Ken Burns images)
    is used automatically; if it fails the Pillow renderer takes over (`engine` in the output).
    Needs `npm ci --prefix renderer/hyperframes` once per container.

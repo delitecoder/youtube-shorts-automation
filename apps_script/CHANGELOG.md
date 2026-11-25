@@ -2,6 +2,11 @@
 
 The owner updates the script; Claude never pushes it. Newest first. Each entry = one SCRIPT_VERSION.
 
+## 2026.11.25-2
+- Every upload now declares "no paid product placement" explicitly. YouTube stopped assuming it
+  on 2026-11-03; without it videos are not marked as free of paid promotion.
+- (Includes 2026.11.25-1 below: long videos + chunked upload.) No new service or permission.
+
 ## 2026.11.25-1
 - **Daily long video (16:9 system-design explainer, ids VIDEO-YYYYMMDD-101…199)** next to the Short.
   Files over 45 MB are uploaded with YouTube's **resumable upload in 32 MB chunks** read straight

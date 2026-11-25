@@ -27,6 +27,14 @@ Daily theme (given by the caller from `discover` → `theme`; pick a topic that 
   12–25 facts: real-world numbers (scale, latency, QPS), how the real system works, common
   failure modes and trade-offs. Dates may be any year (evergreen), but must be real.
 
+Audience insights (from `discover` → `insights`, real YouTube Analytics data; ALWAYS use them):
+- `search_terms`: exact words viewers typed into YouTube search before watching us. Prefer a
+  topic/news story these viewers would search for, and report the matching terms.
+- `suggested_next_to`: titles of videos YouTube recommends us beside: our audience's interests.
+- `by_format.<short|long>.best/weakest`: what worked and what did not; lean towards the best.
+Add to your JSON: "audience_terms": [the 3–6 viewer phrases this topic matches, verbatim from
+search_terms when possible, else the plain words people would type].
+
 Input you receive: either document text (source_type "drive_document") or "research", plus a list
 of topic_keys already covered (avoid them) and an optional analytics summary.
 

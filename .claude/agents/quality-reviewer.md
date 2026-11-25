@@ -11,6 +11,12 @@ the render QC JSON). Check:
 2. Structure: hook in first line; problem → why → how → insight → conclusion + question; 5–8 scenes.
 3. Duration: estimate 45–60 s (≈100–145 words); no padding; QC report ok=true if present.
 4. Captions/on-screen text: short, readable, no typos.
+4b. Voice ↔ picture: in EVERY scene the visual (headline, items, diagram nodes, stat, custom
+   `brief`) must show what that scene's narration is saying at that moment. A visual about
+   something else is a major issue (name the scene and what it should show).
+4c. Audience fit: if `insights.search_terms` are given, the title/first line/tags use the matching
+   viewer words where they honestly fit the topic (no keyword stuffing).
+(Long-form: structure = hook ≤ 15 s, chapters, a new open question every 60–90 s, 6–8 min.)
 5. Metadata: accurate title (≤100), no clickbait or keyword stuffing, ≤15 hashtags, relevant tags,
    pinned comment is a genuine question.
 6. Policy: original wording, no copyrighted material, no medical/financial advice, nothing

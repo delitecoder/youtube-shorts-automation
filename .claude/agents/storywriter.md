@@ -54,6 +54,12 @@ Write two files (paths given by the caller):
    - "category_id": "28" (Science & Technology) for tech/AI/programming, "27" (Education) for
      general education.
    - "hook", "pinned_comment" (the audience question, ends with "?").
+Audience words: use research `audience_terms` / insights `search_terms` (exact phrases viewers
+type) in the title's first words, the first spoken line and the tags, where they honestly fit.
+Voice ↔ picture: every scene's visual must show exactly what that scene's narration says (same
+nouns, numbers and order). Never reuse a visual for a different sentence.
+Voice is free only within limits: Short narration ≤ 1,000 characters, long ≤ 8,000 (spaces count);
+write tight spoken sentences, no filler.
 If an audit `guidance` block is provided (target_seconds, hook, first_frame, cta, series, seo, topic),
 apply every item explicitly and list how in a "applied_guidance" field of storyboard.json.
 If an analytics summary is provided, apply its lessons (e.g. stronger first line, pacing) but

@@ -160,6 +160,10 @@ def _dry(v: str | None) -> bool:
     return (v or "").strip().lower() != "false"
 
 
+TTS_FREE_TIER_CAP = 900_000   # Chirp 3 HD: first 1,000,000 characters/month free (pricing page, 2026-11)
+NARRATION_CHAR_LIMIT = {"short": 1_000, "long": 8_000}   # per video, spaces included
+
+
 @dataclass(frozen=True)
 class Settings:
     dry_run: bool = True
@@ -173,7 +177,7 @@ class Settings:
     min_lead_minutes: int = 120              # publishAt must be at least this far in the future
     approval_ttl_hours: int = 24
     publish_window_hours: int = 24           # approved item must be uploaded within this window
-    tts_monthly_char_budget: int = 100_000
+    tts_monthly_char_budget: int = 600_000   # Chirp 3 HD free tier = 1M chars/month (spaces count)
     tts_voice: str = "en-US-Chirp3-HD-Charon"
     tts_language: str = "en-US"
     tts_provider: str = "google"             # google | kokoro | edge | piper | tone (tests only)
@@ -216,7 +220,8 @@ class Settings:
             timezone=e.get("PUBLISH_TIMEZONE", "Asia/Kolkata"),
             publish_time=e.get("PUBLISH_TIME", "19:30"),
             approval_ttl_hours=int(e.get("APPROVAL_TTL_HOURS", "24")),
-            tts_monthly_char_budget=int(e.get("TTS_MONTHLY_CHAR_BUDGET", "100000")),
+            # never above 90 % of Google's free tier, so voice can never become a paid cost
+            tts_monthly_char_budget=min(int(e.get("TTS_MONTHLY_CHAR_BUDGET", "600000")), TTS_FREE_TIER_CAP),
             tts_voice=e.get("TTS_VOICE", "en-US-Chirp3-HD-Charon"),
             tts_language=e.get("TTS_LANGUAGE", "en-US"),
             tts_provider=e.get("TTS_PROVIDER", "google"),

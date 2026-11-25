@@ -106,6 +106,18 @@ def with_outro(sb: dict, text: str) -> dict:
     return out
 
 
+def narration_chars(sb: dict) -> int:
+    """Characters billed by TTS (whitespace collapsed, as tts.clean_text sends them)."""
+    return sum(len(" ".join(s.get("narration", "").split())) for s in sb.get("scenes", []))
+
+
+def _char_check(sb: dict, e: list[str], fmt: str) -> None:
+    from ..config import NARRATION_CHAR_LIMIT
+    n, lim = narration_chars(sb), NARRATION_CHAR_LIMIT[fmt]
+    if n > lim:
+        e.append(f"narration is {n} characters; keep it ≤ {lim} so the voice stays in the free tier")
+
+
 def is_long(sb: dict) -> bool:
     return sb.get("format") == "long"
 
@@ -182,6 +194,7 @@ def validate_long(sb: dict, require_sources: bool = True) -> tuple[list[str], li
         e.append(f"estimated {est['est_seconds']}s; too long (target 6–8 min, hard cap 12 min)")
     elif not 330 <= est["est_seconds"] <= 540:
         w.append(f"estimated {est['est_seconds']}s outside the ~6–8 min target")
+    _char_check(sb, e, "long")
     custom = sum(1 for s in scenes if s.get("visual", {}).get("type") == "custom")
     if custom < 4:
         w.append(f"only {custom} custom (camera-man) scenes; key diagrams should be custom (aim 6–12)")
@@ -245,6 +258,7 @@ def validate_storyboard(sb: dict, require_sources: bool = True) -> tuple[list[st
         e.append(f"estimated {est['est_seconds']}s; too long (target 45–60s, hard cap 75s)")
     elif not 40 <= est["est_seconds"] <= 65:
         w.append(f"estimated {est['est_seconds']}s outside the ~45–60s target")
+    _char_check(sb, e, "short")
     if not 100 <= est["words"] <= 145:
         w.append(f"{est['words']} words (target ~100–145)")
     if not sb["closing_question"].strip().endswith("?"):

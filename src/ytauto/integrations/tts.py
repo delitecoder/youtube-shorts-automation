@@ -193,16 +193,47 @@ def build_provider(name: str, settings, store):
     raise ValueError(f"unknown TTS provider {name}")
 
 
+def clean_text(t: str) -> str:
+    """Billing counts every character incl. spaces/newlines: send only what is spoken."""
+    return " ".join(str(t).split())
+
+
+def _cache_path(outdir: Path, prov, name: str, text: str) -> Path:
+    import hashlib
+    voice = getattr(prov, "voice", "") or ""
+    h = hashlib.sha256(f"{name}|{voice}|{text}".encode()).hexdigest()[:20]
+    return outdir / "voice_cache" / f"{name}_{h}.wav"
+
+
 def synthesize_all(texts: list[str], outdir: Path, settings, store, log=print) -> tuple[list[Path], str, list[str]]:
     """Voice every text with the first provider that succeeds for ALL of them.
+    Clips are cached by (provider, voice, exact text): re-renders, resumes and retries re-use them
+    and cost no characters; only new/changed scenes are sent to the API.
     Returns (clip paths, provider name, list of fallback reasons)."""
+    import shutil as _sh
+    texts = [clean_text(t) for t in texts]
     order = [settings.tts_provider] + [p for p in settings.tts_fallbacks if p != settings.tts_provider]
     reasons: list[str] = []
     for name in order:
         try:
             prov = build_provider(name, settings, store)
-            prov.preflight(texts)
-            clips = [prov.synthesize(t, outdir / f"{name}_scene{i + 1}.wav") for i, t in enumerate(texts)]
+            cached = [_cache_path(outdir, prov, name, t) for t in texts]
+            todo = [t for t, c in zip(texts, cached) if not c.exists()]
+            if todo:
+                prov.preflight(todo)
+            clips = []
+            for i, (t, c) in enumerate(zip(texts, cached)):
+                dest = outdir / f"{name}_scene{i + 1}.wav"
+                if c.exists():
+                    _sh.copyfile(c, dest)
+                else:
+                    prov.synthesize(t, dest)
+                    c.parent.mkdir(parents=True, exist_ok=True)
+                    _sh.copyfile(dest, c)
+                clips.append(dest)
+            if todo:
+                log(f"TTS {name}: {sum(len(t) for t in todo)} chars synthesized, "
+                    f"{len(texts) - len(todo)} of {len(texts)} scenes from cache")
             return clips, name, reasons
         except (ProviderUnavailable, BudgetExceeded, RuntimeError, OSError, ValueError,
                 subprocess.SubprocessError) as e:
