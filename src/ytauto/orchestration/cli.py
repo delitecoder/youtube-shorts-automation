@@ -226,7 +226,20 @@ def _theme_today(ctx: Ctx) -> dict:
         plan = ctx.store.rows("ThemePlan")
     except Exception:                      # tab missing / sheet unavailable: use the rotation
         plan = []
-    return theme_for(_today_local(ctx), plan)
+    th = theme_for(_today_local(ctx), plan)
+    if th.get("key") == "trending_mix":    # lanes of the last 2 English Shorts: pick a different one
+        try:
+            hist = [h for h in ctx.store.rows("ResearchHistory")
+                    if not is_long(h.get("video_id", "")) and language_of(h.get("video_id", "")) == "en"]
+        except Exception:
+            hist = []
+        th["recent_lanes"] = [h.get("theme") or _lane_of(h.get("category", "")) for h in hist[-2:]]
+    return th
+
+
+def _lane_of(category: str) -> str:
+    return {"technology news": "trending_news", "tech stories": "tech_story",
+            "system design": "system_design_short"}.get(category, "trending_search")
 
 
 def _new_record(ctx: Ctx, source_type: str, source_file_id: str = "", long: bool = False) -> VideoRecord:
@@ -399,6 +412,16 @@ def cmd_voice(ctx: Ctx, a) -> int:
     return 0
 
 
+def cmd_texts(ctx: Ctx, a) -> int:
+    """Export the translatable texts of a storyboard (for the translator agent)."""
+    from ..production import texts as tx
+    items = tx.export(sbmod.normalize(load_json(a.storyboard)))
+    Path(a.out).write_text(json.dumps(items, ensure_ascii=False, indent=1), encoding="utf-8")
+    out({"ok": True, "file": a.out, "items": len(items),
+         "chars": sum(len(x["text"]) for x in items)})
+    return 0
+
+
 def cmd_localize(ctx: Ctx, a) -> int:
     """Make the Tamil (or other language) version of a finished English video: a new item with
     its own id, the same visuals/assets/custom scenes, the translated storyboard (and metadata)
@@ -407,7 +430,15 @@ def cmd_localize(ctx: Ctx, a) -> int:
     if language_of(src.video_id) != "en":
         out({"ok": False, "error": "localize starts from the English video"})
         return 2
-    sb = load_json(a.storyboard)
+    if a.texts:                     # preferred: only the texts change, visuals are the English ones
+        from ..production import texts as tx
+        en_sb = load_json(a.storyboard or (WORK / src.video_id / "storyboard.json"))
+        sb, terrs = tx.merge(en_sb, load_json(a.texts), a.lang)
+        if terrs:
+            out({"ok": False, "errors": terrs[:20]})
+            return 2
+    else:
+        sb = load_json(a.storyboard)
     long_ = is_long(src.video_id)
     if sbmod.is_long(sb) != long_:
         out({"ok": False, "error": "translated storyboard must keep the original format"})
@@ -819,11 +850,19 @@ def cmd_analyze_reference(ctx: Ctx, a) -> int:
     out_dir = RUNTIME_DIR / "reference"
     out_dir.mkdir(parents=True, exist_ok=True)
     src = Path(a.dir) if a.dir else out_dir / "videos"
+    try:
+        known = json.loads(ctx.store.get_config("reference_analysis", "") or "{}")
+    except ValueError:
+        known = {}
+    new_names: set[str] = set()
     if not a.dir:
         src.mkdir(exist_ok=True)
         style = _style_folder(ctx)
         q = f"'{style}' in parents and trashed = false"
         for f in ctx.drive.svc.files().list(q=q, fields="files(id,name,size)", pageSize=50).execute().get("files", []):
+            if f["id"] in known and not a.all:
+                continue                         # analysed in an earlier run (results kept in the sheet)
+            new_names.add(Path(f["name"]).stem.split(".")[0])
             if f["name"].lower().endswith((".mp4", ".webm", ".mkv", ".mov", ".vtt")) and not (src / f["name"]).exists():
                 req = ctx.drive.svc.files().get_media(fileId=f["id"])
                 from googleapiclient.http import MediaIoBaseDownload
@@ -831,14 +870,44 @@ def cmd_analyze_reference(ctx: Ctx, a) -> int:
                     dl, done = MediaIoBaseDownload(fh, req, chunksize=16 * 1024 * 1024), False
                     while not done:
                         _, done = dl.next_chunk(num_retries=3)
-    vids = sorted(p for p in src.iterdir() if p.suffix.lower() in (".mp4", ".webm", ".mkv", ".mov"))
+                if f["name"].lower().endswith((".mp4", ".webm", ".mkv", ".mov")):
+                    known[f["id"]] = {"file": f["name"]}
+    vids = sorted(p for p in src.iterdir() if p.suffix.lower() in (".mp4", ".webm", ".mkv", ".mov")
+                  and (a.dir or p.stem.split(".")[0] in new_names))
     if not vids:
-        out({"ok": False, "error": f"no reference videos in {src} (owner: put them in Drive "
-                                    "YouTubeAutomation/01_Inbox/References/Style)"})
-        return 2
+        out({"ok": True, "new": 0, "style_notes": _style_notes(ctx),
+             "note": "no new reference videos (owner: put them in Drive YouTubeAutomation/01_Inbox/References/Style)"})
+        return 0
     results = [ref.analyze(v, out_dir) for v in vids[: a.limit]]
     ref.save(results, out_dir / "analysis.json")
-    out({"ok": True, "videos": results})
+    by_name = {r["file"]: r for r in results}
+    for fid, k in known.items():
+        r = by_name.get(k.get("file"))
+        if r:
+            known[fid] = {x: r.get(x) for x in ("file", "duration", "size", "cuts_per_min", "avg_shot_s",
+                                               "first_cut_s", "wpm", "hook_first_3s", "lufs")}
+    if not a.dir:
+        ctx.store.set_config("reference_analysis", json.dumps(known)[:45000])
+    out({"ok": True, "new": len(results), "videos": results, "style_notes": _style_notes(ctx),
+         "next": "director: look at each contact_sheet, then add 1–3 concrete notes with "
+                 "`python -m ytauto style-note --add \"…\"` (shot length, text style, transitions, hook)"})
+    return 0
+
+
+def _style_notes(ctx: Ctx) -> list[str]:
+    try:
+        return json.loads(ctx.store.get_config("style_notes", "") or "[]")
+    except ValueError:
+        return []
+
+
+def cmd_style_note(ctx: Ctx, a) -> int:
+    """Director's learnings from reference videos; shown in every `discover` (last 20 kept)."""
+    notes = _style_notes(ctx)
+    if a.add:
+        notes = (notes + [a.add.strip()[:300]])[-20:]
+        ctx.store.set_config("style_notes", json.dumps(notes))
+    out({"ok": True, "style_notes": notes})
     return 0
 
 
@@ -889,7 +958,7 @@ def _insights(ctx: Ctx) -> dict:
         except Exception as e:  # noqa: BLE001 - no analytics access (dry run / no channel yet)
             return {"available": False, "reason": f"audit failed: {str(e)[:160]}"}
     sig = res.get("topic_signals", {})
-    return {"available": True, "date": res.get("date"), "search_terms": sig.get("search_terms", []),
+    return {"style_notes": _style_notes(ctx), "available": True, "date": res.get("date"), "search_terms": sig.get("search_terms", []),
             "suggested_next_to": sig.get("suggested_next_to", []), "by_format": sig.get("by_format", {}),
             "suggestions": res.get("suggestions", []), "guidance": res.get("guidance", {})}
 
@@ -1051,8 +1120,10 @@ def main(argv=None) -> int:
     p.add_argument("--document-based", action="store_true")
     p = sub.add_parser("submit"); p.add_argument("--video-id", required=True); p.add_argument("--metadata", required=True)
     p.add_argument("--review", required=True); p.add_argument("--video")
+    p = sub.add_parser("texts"); p.add_argument("--storyboard", required=True); p.add_argument("--out", required=True)
     p = sub.add_parser("voice"); p.add_argument("--video-id", required=True); p.add_argument("--storyboard", required=True)
-    p = sub.add_parser("localize"); p.add_argument("--video-id", required=True); p.add_argument("--storyboard", required=True)
+    p = sub.add_parser("localize"); p.add_argument("--video-id", required=True); p.add_argument("--storyboard")
+    p.add_argument("--texts", help="translated text list (from `texts`); visuals copied from the English storyboard")
     p.add_argument("--lang", default="ta", choices=["ta"]); p.add_argument("--metadata")
     p = sub.add_parser("resolve-images"); p.add_argument("--storyboard", required=True)
     p = sub.add_parser("fetch-asset"); p.add_argument("--video-id", required=True); p.add_argument("--file-id", required=True)
@@ -1062,6 +1133,8 @@ def main(argv=None) -> int:
     p = sub.add_parser("audit"); p.add_argument("--email", action="store_true")
     sub.add_parser("apps-script-check")
     p = sub.add_parser("analyze-reference"); p.add_argument("--dir"); p.add_argument("--limit", type=int, default=6)
+    p.add_argument("--all", action="store_true", help="re-analyse references already analysed")
+    p = sub.add_parser("style-note"); p.add_argument("--add")
     p = sub.add_parser("frames"); p.add_argument("--video-id", required=True)
     p = sub.add_parser("budget")
     p.add_argument("--five-hour", type=float, help="five_hour utilization 0-1")

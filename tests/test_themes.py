@@ -11,12 +11,12 @@ def test_rotation_covers_every_weekday():
     assert set(CONTENT_ROTATION) <= set(CONTENT_THEMES)
 
 
-def test_shorts_are_daily_tech_news():
+def test_shorts_are_daily_trending_mix():
     monday = date(2026, 11, 23)
     keys = [theme_for(monday + timedelta(days=i))["key"] for i in range(7)]
-    assert keys == ["trending_news"] * 7
+    assert keys == ["trending_mix"] * 7
     t = theme_for(date(2026, 11, 26))
-    assert t["label"] == "Tech News" and t["brief"]
+    assert t["label"] == "Tech Today" and "system_design_short" in t["brief"] and len(t["lanes"]) == 4
     # a ThemePlan row still overrides one day
     t = theme_for(date(2026, 11, 26), [{"date": "2026-11-26", "theme": "motivation"}])
     assert t["key"] == "motivation"
@@ -34,14 +34,14 @@ def test_discover_reports_theme(tmp_path):
 
 def test_theme_plan_overrides_rotation():
     day = date(2026, 11, 25)                                      # a Wednesday (tech news)
-    assert theme_for(day, [])["key"] == "trending_news"
+    assert theme_for(day, [])["key"] == "trending_mix"
     plan = [{"date": "25/11/2026", "theme": "Tech Story", "details": "about the first computer bug"}]
     t = theme_for(day, plan)
     assert t["key"] == "tech_story" and "first computer bug" in t["brief"] and t["source"] == "ThemePlan"
     t = theme_for(day, [{"date": "2026-11-25", "theme": "AI in healthcare", "details": ""}])
     assert t["key"] == "custom" and "AI in healthcare" in t["brief"]
-    assert theme_for(day, [{"date": "2026-11-26", "theme": "motivation", "details": ""}])["key"] == "trending_news"
-    assert theme_for(day, [{"date": "bad", "theme": "motivation", "details": ""}])["key"] == "trending_news"
+    assert theme_for(day, [{"date": "2026-11-26", "theme": "motivation", "details": ""}])["key"] == "trending_mix"
+    assert theme_for(day, [{"date": "bad", "theme": "motivation", "details": ""}])["key"] == "trending_mix"
 
 
 def test_music_tempo_analysis_and_theme_match(tmp_path):

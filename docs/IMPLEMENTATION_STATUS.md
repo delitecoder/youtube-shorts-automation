@@ -131,6 +131,21 @@ _Last updated: 2026-11-25_
 - Apps Script 2026.11.25-3: language from the video (ta/en) on upload, "Tamil" in the approval
   subject, skipped videos re-offered only for the same format + language.
 
+## Added (2026-11-26: variety, no AI slop, text-only Tamil)
+- Shorts theme `trending_mix`: most trending of news / trending search / quick system design /
+  tech story; never the lane of the last 2 Shorts (`theme.recent_lanes`).
+- Motion reworked from HyperFrames' measured motion guide (shipped in node_modules): per-video
+  rotation of transition set (blur/whip/iris/flood/cut), title entrance and caption style on top of
+  the palette; removed pulsing logo, pulsing "?" ring, floating particles and creeping 15 % zoom.
+  scene-coder reads motion.md and has explicit no-slop rules.
+- Validation rejects stock AI phrases and spam hashtags (#tiktok, #fyp, #reels, #viral, #trending…).
+- Tamil from texts only: `texts` exports translatable strings, translator returns them in Tamil,
+  `localize --texts` merges into a copy of the English storyboard (visuals identical, fewer tokens).
+- `analyze-reference` analyses only new Drive references (results kept in the sheet);
+  `style-note --add` stores the director's learnings, shown by `discover` in every run.
+- Instagram reels cannot be fetched from the cloud without login (yt-dlp is redirected to login);
+  the owner downloads them on their computer and puts them in Drive References/Style.
+
 ## Test results
 `python -m pytest -q` → 140 passed (real renders, real Kokoro synthesis, Apps Script parity).
 Mutation check: removing the SENT-label check, request-time check, or checksum check makes tests fail.

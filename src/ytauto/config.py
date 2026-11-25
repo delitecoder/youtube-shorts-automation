@@ -45,15 +45,27 @@ CONTENT_THEMES = {
         "label": "Tech News",
         "brief": "the most important tech news of the last 7 days and why it matters to viewers",
     },
+    "trending_mix": {
+        "label": "Tech Today",
+        "brief": "whatever is MOST trending in tech today, from one of four lanes: trending_news (the "
+                 "biggest tech news of the last 7 days), trending_search (what people search for right "
+                 "now), system_design_short (one system-design idea behind a product in the news or "
+                 "trending, e.g. how UPI or ChatGPT handles load), tech_story (a true story behind a "
+                 "product/bug/company with a twist). Pick the lane with the strongest real trend "
+                 "evidence, never the same lane as `recent_lanes`; report it as \"theme\"",
+        "lanes": {"trending_news": "Tech News", "trending_search": "Trending Tech",
+                  "system_design_short": "System Design", "tech_story": "Tech Story"},
+    },
     "motivation": {
         "label": "Tech Motivation",
         "brief": "a real, verifiable story of a founder, engineer, student or team in tech who "
                  "overcame failure, ending with one practical lesson for the viewer",
     },
 }
-# Shorts: daily tech news (owner decision 2026-11-25; never repeat a story: ResearchHistory
-# topic_keys are passed to the researcher). A ThemePlan row still overrides a single day.
-CONTENT_ROTATION = ("trending_news",) * 7                               # Mon … Sun
+# Shorts: the most trending tech topic of the day from four lanes (news / trending search / quick
+# system design / tech story), never the same lane two days running (owner, 2026-11-26).
+# ResearchHistory topic_keys prevent repeats. A ThemePlan row still overrides a single day.
+CONTENT_ROTATION = ("trending_mix",) * 7                                # Mon … Sun
 
 # Long-form (16:9, 6–8 min) daily system-design explainers, taught in this order; `discover
 # --format long` returns the first topic not yet in ResearchHistory. Owner can override per day

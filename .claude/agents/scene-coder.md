@@ -28,9 +28,15 @@ Canvas and rules (the renderer rejects code that breaks them, so follow them exa
   The id prefix is available as `P` (e.g. `tl.from("#"+P+"title",{...},T0+0.2)`).
   No fetch/eval/timers/requestAnimationFrame/Function. Deterministic only (no Math.random).
 - Fonts: 'DejaVu Sans', 'DejaVu Sans Mono'. Large, readable text (≥ 44 px body, ≥ 64 px titles).
-- Motion style: purposeful and readable on a phone — one idea at a time, eased entrances
-  (power3/back/expo), staggered reveals synced to the narration timestamps in the brief, short
-  holds so the viewer can read, subtle continuous motion (drift, pulse) so frames never feel static.
+- Motion style: FIRST read renderer/hyperframes/node_modules/hyperframes/dist/skills/hyperframes/
+  references/motion.md (sections "Motion craft" and "Transitions with a cause"; measured from
+  HeyGen's own films) and follow it: arrivals on long ease-out tails (expo.out/power4.out), exits
+  40–50 % shorter, overlap 30–50 %, word stagger 60–120 ms, a landed title stays still, one accent
+  word carries meaning, holds of ~0.5 s + 0.3 s per word. Motion comes from the idea itself
+  (data flowing, a box splitting, a counter rising), never from decoration.
+- NO AI slop: no pulsing/breathing/floating loops, no glow pulses, no bounce on UI, no slow creeping
+  zoom, no "everything fades and slides up", no generic sparkles/particles, no gradient blobs.
+  Vary entrances within the scene.
 - System-design visuals: boxes for services, arrows/flow lines drawn with SVG stroke-dashoffset
   animations, data packets moving along paths, highlight the component being explained.
 

@@ -77,3 +77,36 @@ def test_tamil_duration_estimate_uses_characters():
     ta = dict(sb, language="ta", scenes=[dict(x, narration="அ" * 135) for x in sb["scenes"]])
     est = sbm.estimate(ta)
     assert abs(est["est_seconds"] - len(ta["scenes"]) * (10 + sbm.SCENE_PAD_S)) < 0.5
+
+
+def test_texts_export_merge_changes_only_text():
+    from ytauto.production import texts as tx
+    sb = sbm.normalize(json.loads((FIX / "sample_storyboard.json").read_text()))
+    sb["scenes"][0]["visual"] = {"type": "custom", "code": "scene1", "full_frame": True}
+    items = tx.export(sb)
+    assert any(x["path"] == "scenes.0.narration" for x in items)
+    assert not any(".visual.code" in x["path"] or "nodes" in x["path"] for x in items)
+    ta = [dict(x, ta="த " + x["text"]) for x in items]
+    out, errs = tx.merge(sb, ta, "ta")
+    assert errs == [] and out["language"] == "ta"
+    assert out["scenes"][0]["narration"].startswith("த ")
+    for a, b in zip(sb["scenes"], out["scenes"]):          # visuals identical except translated text
+        assert a["visual"]["type"] == b["visual"]["type"]
+        if a["visual"]["type"] in ("diagram", "code", "custom"):
+            assert a["visual"] == b["visual"]
+    _, errs = tx.merge(sb, ta[1:], "ta")
+    assert errs and "missing translation" in errs[0]
+
+
+def test_localize_from_texts(tmp_path):
+    from ytauto.production import texts as tx
+    rt = tmp_path / "rt"
+    vid = run(rt, "new-item")["video_id"]
+    sb = json.loads((FIX / "sample_storyboard.json").read_text()) | {"video_id": vid}
+    (tmp_path / "en.json").write_text(json.dumps(sb))
+    r = run(rt, "texts", "--storyboard", str(tmp_path / "en.json"), "--out", str(tmp_path / "t.json"))
+    items = json.loads((tmp_path / "t.json").read_text())
+    assert r["items"] == len(items) > 5
+    (tmp_path / "ta.json").write_text(json.dumps([dict(x, ta="த " + x["text"]) for x in items], ensure_ascii=False))
+    r = run(rt, "localize", "--video-id", vid, "--storyboard", str(tmp_path / "en.json"), "--texts", str(tmp_path / "ta.json"))
+    assert r["ok"] and r["video_id"].endswith("-051")

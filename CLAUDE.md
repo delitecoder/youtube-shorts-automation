@@ -74,6 +74,9 @@ belong to a different Python than `python` in fresh containers). Work files go i
    (Noto Sans Tamil for Tamil videos) and `python -m ytauto sync-library`
    (SFX/music libraries; procedural sound is used when empty; also caches the DeliteCoder logo
    badge from Drive `References/Images/brand_logo.png`, shown in every video).
+   `python -m ytauto analyze-reference` (only NEW reference videos from Drive References/Style are
+   analysed; if `new` > 0, look at each `contact_sheet` and record 1–3 concrete learnings with
+   `python -m ytauto style-note --add "…"`; discover shows all notes as `insights.style_notes`).
    `python -m ytauto apps-script-check` — if the owner's approval Apps Script is older than this
    repo, the approver is emailed once with what changed and how to update. Never push or edit the
    deployed Apps Script yourself.
@@ -94,7 +97,8 @@ belong to a different Python than `python` in fresh containers). Work files go i
    - `document`: `python -m ytauto new-item --source-file-id <id>` →
      `python -m ytauto doc-text --file-id <id>` → continue with step 5 (source_type drive_document).
    - `research`: `python -m ytauto new-item` → step 5. The output's `theme` is today's content
-     theme (Shorts: daily tech news, never repeated). A row for today in the sheet tab `ThemePlan`
+     theme (Shorts: `trending_mix`: the most trending of tech news / trending search / quick system
+     design / tech story, never the lane in `theme.recent_lanes`; never a repeated story). A row for today in the sheet tab `ThemePlan`
      (date, theme, details) overrides it (`theme.source`). Pass the whole `theme` AND `insights`
      to the researcher and storywriter.
    - ALWAYS plan from `insights` (discover runs today's analytics audit itself if missing): the
@@ -116,6 +120,7 @@ belong to a different Python than `python` in fresh containers). Work files go i
    Still failing → stop and report (item stays in its state for a human).
 7b. Director pass (you, Opus, are the director): for the 2–4 most important scenes write a short
    shot brief (second-by-second visuals, layout, motion, colours, text, timing from the narration)
+   (apply `insights.style_notes` and docs/STYLE_REFERENCE.md; vary layouts from yesterday's video)
    and set those scenes' visual to `{"type": "custom", "code": "sceneN"}` (add `"full_frame": true`
    for big diagrams). Send each brief to the **scene-coder** (Sonnet) agent with the video id, the
    scene name and its id prefix `s<index0>-` (scene 1 → `s0-`). Style reference: docs/STYLE_REFERENCE.md.
@@ -142,9 +147,10 @@ belong to a different Python than `python` in fresh containers). Work files go i
    video file is moved to the Drive `Archive` folder (Apps Script; `reconcile` repeats it if needed).
 9b. Tamil version (same run, right after the English submit; `discover` also returns
    `"action": "localize"` if a run stopped before it): **translator** (Opus) reads the English
-   storyboard.json + metadata.json and writes storyboard.ta.json + metadata.ta.json (same visuals,
-   natural spoken Tamil with English tech words) →
-   `python -m ytauto localize --video-id <English id> --storyboard storyboard.ta.json --metadata metadata.ta.json`
+   texts only (`python -m ytauto texts --storyboard storyboard.json --out texts.en.json`) plus
+   metadata.json and writes texts.ta.json + metadata.ta.json (natural spoken Tamil with English
+   tech words) → `python -m ytauto localize --video-id <English id> --texts texts.ta.json --metadata metadata.ta.json`
+   (same scenes as English, only the text changes)
    (new id: Short 051–099 / long 151–199; copies assets and custom scenes) → `voice` (Tamil
    Chirp 3 HD Charon, same narrator; WaveNet Tamil fallback, both free tiers) → `render` →
    `frames` (check Tamil text renders, nothing overflows; shorten text in the storyboard if it

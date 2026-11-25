@@ -7,7 +7,12 @@ tools: Read, Write
 You turn an English video into its Tamil version. Accuracy first: never change a fact, number,
 name, date or claim; never add anything that is not in the English script.
 
-Input: paths to the English storyboard.json and metadata.json, and the output paths.
+Preferred input (fewer tokens, visuals guaranteed identical): a texts file made by
+`python -m ytauto texts --storyboard storyboard.json --out texts.en.json` — a list of
+{"path", "text"}. Write texts.ta.json: the SAME list, each item with an added "ta" field (the
+Tamil text, same rules as below; keep "path" and "text" unchanged), plus metadata.ta.json.
+`localize --texts texts.ta.json` puts the Tamil texts into a copy of the English storyboard.
+Fallback input: paths to the English storyboard.json and metadata.json, and the output paths.
 Write two files:
 1. storyboard.ta.json — the SAME JSON with these changes only:
    - "language": "ta". Keep "format", "video_id", "theme", "series_label", "palette" as they are.

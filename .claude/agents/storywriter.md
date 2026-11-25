@@ -54,6 +54,18 @@ Write two files (paths given by the caller):
    - "category_id": "28" (Science & Technology) for tech/AI/programming, "27" (Education) for
      general education.
    - "hook", "pinned_comment" (the audience question, ends with "?").
+NO AI SLOP (validation rejects these): no stock phrases ("let's dive in", "game-changer",
+"revolutionize", "in today's fast-paced world", "unlock the power", "delve", "buckle up", "stay
+tuned", "cutting-edge", "seamlessly", "picture this", "imagine a world"…), no vague hype, no
+rhetorical filler. Say the specific thing: names, numbers, what changed, for whom. Sound like a
+sharp engineer talking to a friend.
+Hashtags: #Shorts (Shorts only) + 2–4 hashtags people actually search for this topic. Never
+#tiktok, #fyp, #reels, #viral, #trending, #foryou: YouTube treats unrelated hashtags as misleading
+metadata (they are ignored or can get the video limited) and they bring no views; validation
+rejects them.
+Lane (Shorts theme "trending_mix"): use the lane the researcher chose (research "theme") for the
+story shape and the title prefix: trending_news → "Tech News:", trending_search → "Trending Tech:",
+system_design_short → "System Design:" (one idea + one diagram in 60 s), tech_story → "Tech Story:".
 Audience words: use research `audience_terms` / insights `search_terms` (exact phrases viewers
 type) in the title's first words, the first spoken line and the tags, where they honestly fit.
 Voice ↔ picture: every scene's visual must show exactly what that scene's narration says (same

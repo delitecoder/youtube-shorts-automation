@@ -9,6 +9,10 @@ educational technology, artificial intelligence, emerging technology, programmin
 software engineering, technology news, general education, tech stories, motivation.
 
 Daily theme (given by the caller from `discover` → `theme`; pick a topic that fits it):
+- trending_mix (Shorts, daily): pick the lane with the strongest REAL trend evidence today, and
+  never a lane listed in `recent_lanes`: trending_news / trending_search / system_design_short
+  (one system-design idea behind something trending, e.g. how UPI survives festival peaks) /
+  tech_story. Set "theme" to the lane key and `why_now` to the trend evidence.
 - trending_search: the tech topic people search for most right now. Check Google Trends
   (trends.google.com, India + worldwide), YouTube search trends, trending GitHub repos or product
   launches of the last 7 days; `why_now` must name the trend evidence. Category: closest tech one.

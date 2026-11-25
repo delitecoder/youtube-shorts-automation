@@ -25,6 +25,7 @@ SIZES = {"short": (1080, 1920), "long": (1920, 1080)}
 ROOT = Path(__file__).resolve().parents[3]
 RENDERER_DIR = ROOT / "renderer" / "hyperframes"
 ACCENTS = ["#22d3ee", "#fbbf24", "#f472b6", "#a3e635"]
+TITLE_KIND = "blur_words"
 # Colour styles, rotated per video (storyboard "palette" index wins) so consecutive videos look
 # different. Each: accents + stage background.
 PALETTES = [
@@ -39,6 +40,50 @@ PALETTES = [
     {"name": "violet", "accents": ["#a78bfa", "#22d3ee", "#f9a8d4", "#fcd34d"],
      "bg": "radial-gradient(1200px 900px at 30% 0%,#2e1b5c 0%,transparent 60%),radial-gradient(900px 900px at 90% 90%,#0e3a4a 0%,transparent 60%),linear-gradient(#0d0a1f,#140f2b)"},
 ]
+
+
+# Motion "grammars", rotated per video (like palettes) so consecutive videos never move the same way.
+# Built from HyperFrames' measured motion guide (node_modules/hyperframes/dist/skills/hyperframes/
+# references/motion.md): arrivals on long ease-out tails, titles that land and stay still, 3–5
+# transition kinds per film each with a cause, no pulsing/breathing loops (they read as AI-made).
+TRANSITION_SETS = [
+    ["blur", "whip", "iris", "cut"],
+    ["whip", "flood", "blur", "cut"],
+    ["iris", "blur", "whip", "flood"],
+]
+TITLE_ENTRANCES = ["blur_words", "grey_to_ink", "line_blur"]
+CAPTION_STYLES = ["highlight", "pill", "underline"]
+
+
+def style_for(storyboard: dict) -> dict:
+    """Deterministic per video: storyboard "style" {transitions, title, captions} wins."""
+    digits = "".join(ch for ch in storyboard.get("video_id", "") if ch.isdigit())
+    k = int(digits[:8]) if len(digits) >= 8 else 0
+    st = storyboard.get("style") or {}
+    return {"transitions": st.get("transitions") or TRANSITION_SETS[k % len(TRANSITION_SETS)],
+            "title": st.get("title") or TITLE_ENTRANCES[(k // 3) % len(TITLE_ENTRANCES)],
+            "captions": st.get("captions") or CAPTION_STYLES[(k + 1) % len(CAPTION_STYLES)]}
+
+
+def _words_in(sel: str, kind: str, at: float) -> str:
+    if kind == "grey_to_ink":
+        return f'tl.from("{sel}",{{color:"#5b6078",duration:0.25,stagger:0.08,ease:"power2.out"}},{at:.3f});'
+    if kind == "line_blur":
+        return f'tl.from("{sel}",{{filter:"blur(8px)",opacity:0,duration:0.2,ease:"power2.out"}},{at:.3f});'
+    return f'tl.from("{sel}",{{filter:"blur(6px)",opacity:0,duration:0.13,stagger:0.067,ease:"power2.out"}},{at:.3f});'
+
+
+def _transition(sid: str, kind: str, t0: float, accent: str) -> list[str]:
+    if kind == "whip":
+        return [f'tl.from("#{sid}",{{x:220,filter:"blur(14px)",duration:0.22,ease:"expo.out"}},{t0:.3f});']
+    if kind == "iris":
+        return [f'tl.from("#{sid}",{{clipPath:"circle(0% at 50% 45%)",duration:0.45,ease:"power3.inOut"}},{t0:.3f});']
+    if kind == "flood":
+        return [f'tl.fromTo("#{sid}",{{backgroundColor:"{accent}"}},{{backgroundColor:"rgba(0,0,0,0)",duration:0.4,ease:"power2.inOut"}},{t0:.3f});',
+                f'tl.from("#{sid} .vis, #{sid} .custom-full",{{opacity:0,duration:0.25}},{t0 + 0.15:.3f});']
+    if kind == "blur":
+        return [f'tl.from("#{sid}",{{opacity:0,filter:"blur(12px)",duration:0.3,ease:"power2.out"}},{t0:.3f});']
+    return []
 
 
 def palette_for(storyboard: dict) -> dict:
@@ -81,7 +126,7 @@ def _visual(i: int, v: dict, t0: float, dur: float, accent: str, images: dict) -
         if v.get("kicker"):
             out += f'<div class="kicker" id="{sid}k">{e(v["kicker"])}</div>'
         out += f'<div class="bar" id="{sid}b" style="background:{accent}"></div></div>'
-        js += [f'tl.from("#{sid}h .w",{{y:90,opacity:0,rotation:4,stagger:0.07,duration:0.6,ease:"back.out(1.7)"}},{a});',
+        js += [_words_in(f"#{sid}h .w", TITLE_KIND, t0 + 0.35),
                f'tl.from("#{sid}k",{{opacity:0,x:-40,duration:0.5}},{t0 + 0.8:.3f});',
                f'tl.from("#{sid}b",{{scaleX:0,transformOrigin:"left",duration:0.8,ease:"power3.out"}},{t0 + 0.6:.3f});']
     elif k == "bullets":
@@ -161,7 +206,7 @@ def _visual(i: int, v: dict, t0: float, dur: float, accent: str, images: dict) -
                f'<div class="ring" id="{sid}r" style="border-color:{accent};color:{accent}">?</div></div>')
         js += [f'tl.from("#{sid}q .w",{{y:60,opacity:0,stagger:0.08,duration:0.5,ease:"power3.out"}},{a});',
                f'tl.from("#{sid}r",{{scale:0,duration:0.6,ease:"elastic.out(1,0.5)"}},{t0 + 0.9:.3f});',
-               f'tl.to("#{sid}r",{{scale:1.12,repeat:{max(1, int(dur / 0.7))},yoyo:true,duration:0.35}},{t0 + 1.5:.3f});']
+               ]
     elif k == "image":
         name = Path(v["asset"]).name
         f = v.get("focus") or [0.25, 0.25, 0.75, 0.75]
@@ -171,7 +216,7 @@ def _visual(i: int, v: dict, t0: float, dur: float, accent: str, images: dict) -
                f'<div class="sweep" id="{sid}sw"></div><div class="vignette"></div></div>'
                + (f'<div class="imgcap" id="{sid}cap">{e(v.get("caption", ""))}</div>' if v.get("caption") else ""))
         js += [f'tl.from("#{sid}w",{{clipPath:"inset(50% 50% 50% 50% round 32px)",duration:0.7,ease:"power3.inOut"}},{t0 + 0.15:.3f});',
-               f'tl.fromTo("#{sid}img",{{scale:1.0}},{{scale:1.15,duration:{max(dur, 1):.2f},ease:"none"}},{t0:.3f});',
+               f'tl.fromTo("#{sid}img",{{scale:1.0}},{{scale:1.05,duration:{max(dur, 1):.2f},ease:"power1.out"}},{t0:.3f});',
                f'tl.fromTo("#{sid}sw",{{x:"-120%"}},{{x:"220%",duration:1.1,ease:"power2.inOut"}},{t0 + 0.6:.3f});']
         if v.get("caption"):
             js.append(f'tl.from("#{sid}cap",{{y:30,opacity:0,duration:0.4}},{t0 + 0.8:.3f});')
@@ -240,7 +285,7 @@ html,body{margin:0;background:#0a0e20}
 .bell{font-size:130px;margin-top:70px}.sub p{font-size:48px;color:#fff;margin-top:40px}
 .cap{position:absolute;left:90px;right:150px;top:1290px;text-align:center;font-size:66px;font-weight:800;color:#fff;
  text-shadow:0 0 6px #000,0 0 12px #000,4px 4px 0 #000}
-.cap span{display:inline-block;margin:0 6px}
+.cap span{display:inline-block;margin:0 6px;padding:0 8px;border-radius:12px}
 .w{display:inline-block}
 .btn{white-space:nowrap}
 """
@@ -286,6 +331,9 @@ def build(storyboard: dict, timings: list[dict], caps: list[dict], workdir: Path
     w_px, h_px = SIZES["long" if long_ else "short"]
     pal = palette_for(storyboard)
     ACCENTS = list(pal["accents"])
+    global TITLE_KIND
+    sty = style_for(storyboard)
+    TITLE_KIND = sty["title"]
     proj = workdir / "hf"
     if proj.exists():
         shutil.rmtree(proj)
@@ -302,16 +350,10 @@ def build(storyboard: dict, timings: list[dict], caps: list[dict], workdir: Path
     # ambient: drifting grid + particles + progress bar (finite repeats keep the timeline seekable)
     body.append('<div class="grid" id="grid"></div>')
     js.append(f'tl.to("#grid",{{y:60,duration:{duration:.2f},ease:"none"}},0);')
-    for p in range(14):
-        x, y, col = rnd.randint(40, w_px - 40), rnd.randint(120, h_px - 120), ACCENTS[p % 4]
-        body.append(f'<div class="particle" id="p{p}" style="left:{x}px;top:{y}px;background:{col}"></div>')
-        js.append(f'tl.to("#p{p}",{{y:-{rnd.randint(120, 380)},x:{rnd.randint(-60, 60)},opacity:{rnd.uniform(.2, .8):.2f},'
-                  f'duration:{duration:.2f},ease:"sine.inOut"}},0);')
-    if logo:                                   # brand badge: pops in, pulses on every scene change
+    # (no floating particles or pulsing badge: looping "life" motion reads as AI-generated)
+    if logo:                                   # brand badge: lands once and stays still
         body.append(f'<img class="logo" id="logo" src="{e(logo)}">')
-        js.append('tl.from("#logo",{scale:0,rotation:-25,duration:0.5,ease:"back.out(2)"},0);')
-        for tm in timings[1:]:
-            js.append(f'tl.fromTo("#logo",{{scale:1.18}},{{scale:1,duration:0.3,ease:"power2.out"}},{tm["start"]:.3f});')
+        js.append('tl.from("#logo",{scale:0.6,opacity:0,duration:0.5,ease:"expo.out"},0);')
     body.append(f'<div class="top{" withlogo" if logo else ""}">{e(series_label)}</div>')
     dashes = "".join(f'<i id="ch{k}"></i>' for k in range(len(storyboard["scenes"])))
     body.append(f'<div class="chapters">{dashes}</div>')
@@ -361,12 +403,11 @@ def build(storyboard: dict, timings: list[dict], caps: list[dict], workdir: Path
         inner = f'<div class="custom-full">{vis_html}</div>' if full_frame else f'<div class="vis">{vis_html}</div>'
         body.append(f'<div class="scene clip" id="s{i}" data-start="{t0:.3f}" data-duration="{dur:.3f}" data-track-index="1">'
                     f'{head}{inner}</div>')
-        trans = s.get("transition", "fade")
-        if i > 0 and trans != "cut":
-            frm = '{x:160,opacity:0}' if trans == "slide" else '{opacity:0,scale:1.04}'
-            js.append(f'tl.from("#s{i}",{{...{frm},duration:0.35,ease:"power2.out"}},{t0:.3f});')
+        if i > 0:                              # transitions vary scene to scene (and video to video)
+            kind = "cut" if s.get("transition") == "cut" else sty["transitions"][(i - 1) % len(sty["transitions"])]
+            js += _transition(f"s{i}", kind, t0, accent)
         if not full_frame:
-          js.append(f'tl.from("#s{i}hd .w",{{y:30,opacity:0,stagger:0.05,duration:0.4,ease:"power3.out"}},{t0 + 0.05:.3f});')
+            js.append(_words_in(f"#s{i}hd .w", sty["title"], t0 + 0.05))
         js += vis_js
 
     for c_i, c in enumerate(caps):
@@ -378,9 +419,13 @@ def build(storyboard: dict, timings: list[dict], caps: list[dict], workdir: Path
         body.append(f'<div class="cap clip" data-start="{start:.3f}" data-duration="{max(end - start, 0.1):.3f}" '
                     f'data-track-index="2">{spans}</div>')
         si = next((k for k, tm in enumerate(timings) if c["start"] < tm["end"]), 0)
+        col = ACCENTS[si % 4]
+        on, off = {"pill": (f'backgroundColor:"{col}",color:"#0b0d18"', 'backgroundColor:"rgba(0,0,0,0)",color:"#ffffff"'),
+                   "underline": (f'boxShadow:"inset 0 -10px 0 {col}"', 'boxShadow:"inset 0 0 0 rgba(0,0,0,0)"'),
+                   }.get(sty["captions"], (f'color:"{col}"', 'color:"#ffffff"'))
         for j, w in enumerate(c["words"]):
-            js.append(f'tl.to("#c{c_i}w{j}",{{color:"{ACCENTS[si % 4]}",scale:1.12,duration:0.08}},{w[1]:.3f});')
-            js.append(f'tl.to("#c{c_i}w{j}",{{color:"#ffffff",scale:1,duration:0.08}},{w[2]:.3f});')
+            js.append(f'tl.to("#c{c_i}w{j}",{{{on},duration:0.06}},{w[1]:.3f});')
+            js.append(f'tl.to("#c{c_i}w{j}",{{{off},duration:0.06}},{w[2]:.3f});')
 
     css = CSS.replace("background:radial-gradient(1200px 900px at 20% 10%,#1d2a5c 0%,transparent 60%),"
                       "radial-gradient(900px 900px at 90% 80%,#3a1747 0%,transparent 60%),linear-gradient(#0a0e20,#151030);",

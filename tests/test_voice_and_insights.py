@@ -90,3 +90,12 @@ def test_off_topic_searches_are_not_used_for_planning():
     sig = au.topic_signals(rep)
     assert sig["search_terms"] == ["birthday app", "sql drop vs truncate"]
     assert sig["other_searches"] == ["bomma padam"]
+
+
+def test_slop_phrases_and_spam_hashtags_rejected():
+    sb = {"scenes": [{"narration": "Let's dive in to the game-changer AI."}]}
+    assert sbm.slop_check(sb)
+    m = {"title": "Anthropic IPO opens 34% up", "tags": [f"t{i}" for i in range(9)], "category_id": "28",
+         "pinned_comment": "Buy?", "description": "Line\n#Shorts #AI #TikTok #viral"}
+    errs = sbm.validate_metadata(m)
+    assert any("#tiktok" in e and "#viral" in e for e in errs)

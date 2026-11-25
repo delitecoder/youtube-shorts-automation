@@ -120,6 +120,28 @@ def with_outro(sb: dict, text: str) -> dict:
     return out
 
 
+# Stock phrases that make a script sound AI-written ("AI slop"). Checked in every narration.
+SLOP = ("in today's fast-paced world", "in today's digital", "let's dive in", "let's dive into", "dive deep",
+        "game-changer", "game changer", "revolutionize", "revolutionise", "unlock the power", "unleash",
+        "in the ever-evolving", "ever-evolving landscape", "buckle up", "stay tuned", "without further ado",
+        "it's no secret", "the world of", "a testament to", "delve", "elevate your", "harness the power",
+        "seamlessly", "cutting-edge", "in conclusion", "picture this", "imagine a world")
+# Hashtags for other platforms or with no topic meaning: YouTube's policy treats misleading or
+# unrelated hashtags as spam (it may ignore or remove them); they bring no views.
+BANNED_HASHTAGS = {"#tiktok", "#fyp", "#foryou", "#foryoupage", "#reels", "#instagram", "#viral",
+                   "#viralvideo", "#trending", "#explore"}
+
+
+def slop_check(sb: dict) -> list[str]:
+    out = []
+    for i, sc in enumerate(sb.get("scenes", []), 1):
+        low = sc.get("narration", "").lower()
+        hit = [p for p in SLOP if p in low]
+        if hit:
+            out.append(f"scene {i}: generic AI phrase {hit[0]!r}; say the specific thing instead")
+    return out
+
+
 def narration_chars(sb: dict) -> int:
     """Characters billed by TTS (whitespace collapsed, as tts.clean_text sends them)."""
     return sum(len(" ".join(s.get("narration", "").split())) for s in sb.get("scenes", []))
@@ -210,6 +232,7 @@ def validate_long(sb: dict, require_sources: bool = True) -> tuple[list[str], li
     elif not 330 <= est["est_seconds"] <= 540:
         w.append(f"estimated {est['est_seconds']}s outside the ~6–8 min target")
     _char_check(sb, e, "long")
+    e += slop_check(sb)
     custom = sum(1 for s in scenes if s.get("visual", {}).get("type") == "custom")
     if custom < 4:
         w.append(f"only {custom} custom (camera-man) scenes; key diagrams should be custom (aim 6–12)")
@@ -274,6 +297,7 @@ def validate_storyboard(sb: dict, require_sources: bool = True) -> tuple[list[st
     elif not 40 <= est["est_seconds"] <= 65:
         w.append(f"estimated {est['est_seconds']}s outside the ~45–60s target")
     _char_check(sb, e, "short")
+    e += slop_check(sb)
     if sb.get("language", "en") == "en" and not 100 <= est["words"] <= 145:
         w.append(f"{est['words']} words (target ~100–145)")
     if not sb["closing_question"].strip().endswith("?"):
@@ -308,6 +332,9 @@ def validate_metadata(m: dict, long: bool = False) -> list[str]:
         e.append(f"{len(tags_in_desc)} hashtags in the description; use 3–5 (the first 3 show above the title)")
     if long and not re.search(r"(?m)^0:00 ", d):
         e.append("long-form description needs chapters starting at 0:00 (added by submit from the storyboard)")
+    bad = sorted({h.lower() for h in tags_in_desc} & BANNED_HASHTAGS)
+    if bad:
+        e.append(f"remove {', '.join(bad)}: other-platform/unrelated hashtags count as misleading on YouTube")
     if long and "#shorts" in d.lower():
         e.append("long-form description must not include #Shorts")
     elif not long and "#shorts" not in d.lower():
