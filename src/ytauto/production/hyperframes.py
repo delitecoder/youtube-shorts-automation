@@ -263,9 +263,9 @@ CSS_LONG = """
 .vis{left:160px;right:160px;top:240px;height:640px}
 .title h1{font-size:88px;margin:90px 0 0}
 .bullets li{font-size:50px;margin:0 0 46px 0}
-.diagram{flex-direction:row;justify-content:center;margin-top:180px}
-.node{width:auto;min-width:220px;max-width:360px;font-size:40px;padding:30px 24px}
-.arrow{width:70px;height:8px;margin:0 6px}
+.diagram{flex-direction:row;justify-content:center;align-items:center;margin-top:200px}
+.node{width:auto;min-width:280px;max-width:400px;font-size:48px;padding:38px 30px}
+.arrow{width:90px;height:10px;margin:0 8px}
 .stat{margin-top:90px}
 .card{min-height:440px}
 .timeline .line{height:560px}
