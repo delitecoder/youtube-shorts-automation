@@ -31,6 +31,7 @@ VISUAL_TYPES = {
     "timeline": {"events"},
     "question": {"question"},
     "image": {"asset"},          # file name of an image fetched with `ytauto fetch-asset`
+    "custom": {"code"},          # scene-coder (camera man) HTML+GSAP in scenes/<code>.html/.js
 }
 OUTRO_TYPE = "subscribe"         # added automatically by with_outro(); not written by the storywriter
 TRANSITIONS = {"fade", "slide", "cut"}

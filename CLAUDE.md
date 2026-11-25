@@ -19,6 +19,7 @@ Read `docs/IMPLEMENTATION_STATUS.md` first when resuming development work.
 | Orchestrator (main session) | **Opus** (`.claude/settings.json` → `opus`) | runs the workflow, calls CLI + subagents |
 | researcher, quality-reviewer | **Haiku** | research JSON, fact/quality checks |
 | storywriter, code-engineer | **Sonnet** | scripts/metadata, code fixes |
+| scene-coder ("camera man") | **Sonnet** | writes HTML+GSAP for `custom` scenes from the director's brief |
 | advisor | **Fable** | only for genuinely hard decisions; ≤ 120-word answers; at most once per run |
 Images are described and checked by local vision models (OmniVision → SmolVLM → Google Vision → CLIP+YOLOv8);
 Claude reads only the compact JSON summary (`kw`, `flags`, `rel`), never the image or the full description.
@@ -106,10 +107,20 @@ belong to a different Python than `python` in fresh containers). Work files go i
    `References/Images` via `fetch-asset`). Unresolved scenes become title cards automatically.
 7. **quality-reviewer** (haiku) → `review.json`. If `fail`, one revision by storywriter, review again.
    Still failing → stop and report (item stays in its state for a human).
+7b. Director pass (you, Opus, are the director): for the 2–4 most important scenes write a short
+   shot brief (second-by-second visuals, layout, motion, colours, text, timing from the narration)
+   and set those scenes' visual to `{"type": "custom", "code": "sceneN"}` (add `"full_frame": true`
+   for big diagrams). Send each brief to the **scene-coder** (Sonnet) agent with the video id, the
+   scene name and its id prefix `s<index0>-` (scene 1 → `s0-`). Style reference: docs/STYLE_REFERENCE.md.
 8. `python -m ytauto render --video-id … --storyboard storyboard.json` (QC must be ok). The HyperFrames
    engine (animated HTML/GSAP: transitions, kinetic text, particles, light sweeps, Ken Burns images)
    is used automatically; if it fails the Pillow renderer takes over (`engine` in the output).
    Needs `npm ci --prefix renderer/hyperframes` once per container.
+   Director review: `python -m ytauto frames --video-id …` → look at `review_sheet.png` (one image,
+   2 frames per scene) and `custom_scenes` (any `fallback` means the camera man's code was rejected,
+   with the reason). If a scene is wrong (unreadable, overlapping, off-brief, rejected), YOU fix the
+   code in runtime/work/<id>/scenes/ directly (or re-brief the scene-coder once) and render again.
+   At most 2 review rounds; then submit the best version.
    Voice: Google TTS → Kokoro (offline) → Piper; one voice per video. Adds music (ducked), SFX
    and the automatic subscribe end card. Image/SFX/music credits are added to the description.
 9. `python -m ytauto submit --video-id … --metadata metadata.json --review review.json`.

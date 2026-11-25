@@ -175,6 +175,7 @@ html,body{margin:0;background:#0a0e20}
 .chapters{position:absolute;right:60px;top:174px;display:flex;gap:8px}.chapters i{display:block;width:34px;height:8px;border-radius:3px;background:#464e6e}
 .progress{position:absolute;left:0;top:150px;height:8px;width:1080px;transform-origin:left}
 .scene{position:absolute;left:0;top:0;width:1080px;height:1920px}
+.custom-full{position:absolute;left:0;top:200px;width:1080px;height:1040px;overflow:hidden}
 .head{position:absolute;left:90px;right:150px;top:230px;font-size:66px;font-weight:700;line-height:1.15}
 .vis{position:absolute;left:90px;right:150px;top:440px;height:740px;color:#f5f7ff}
 .title h1{font-size:92px;line-height:1.1;margin:120px 0 0 0;color:#fff}
@@ -252,19 +253,37 @@ def build(storyboard: dict, timings: list[dict], caps: list[dict], workdir: Path
     body.append(f'<div class="progress" id="prog" style="background:{ACCENTS[0]}"></div>')
     js.append(f'tl.fromTo("#prog",{{scaleX:0}},{{scaleX:1,duration:{duration:.2f},ease:"none"}},0);')
 
+    custom_report: list[dict] = []
     for i, (s, tm) in enumerate(zip(scenes, timings)):
         t0, dur = tm["start"], tm["end"] - tm["start"]
         accent = ACCENTS[i % 4]
-        vis_html, vis_js = _visual(i, s["visual"], t0, dur, accent, {})
+        v = s["visual"]
+        full_frame = False
+        if v.get("type") == "custom":                 # camera-man code, checked before use
+            from .custom_scene import SceneRejected, load, wrap_js
+            prefix = f"s{i}-"
+            try:
+                html_c, js_c = load(workdir, v.get("code", f"scene{i + 1}"), prefix)
+                vis_html, vis_js = html_c, [wrap_js(js_c, t0, dur, prefix)]
+                full_frame = bool(v.get("full_frame"))
+                custom_report.append({"scene": i + 1, "status": "used"})
+            except SceneRejected as ex:
+                custom_report.append({"scene": i + 1, "status": "fallback", "reason": str(ex)[:300]})
+                vis_html, vis_js = _visual(i, {"type": "title", "headline": s.get("on_screen_text") or " "},
+                                           t0, dur, accent, {})
+        else:
+            vis_html, vis_js = _visual(i, v, t0, dur, accent, {})
         head_words = "".join(f'<span class="w">{e(w)}</span> ' for w in s.get("on_screen_text", "").split())
+        head = "" if full_frame else f'<div class="head" id="s{i}hd" style="color:{accent}">{head_words}</div>'
+        inner = f'<div class="custom-full">{vis_html}</div>' if full_frame else f'<div class="vis">{vis_html}</div>'
         body.append(f'<div class="scene clip" id="s{i}" data-start="{t0:.3f}" data-duration="{dur:.3f}" data-track-index="1">'
-                    f'<div class="head" id="s{i}hd" style="color:{accent}">{head_words}</div>'
-                    f'<div class="vis">{vis_html}</div></div>')
+                    f'{head}{inner}</div>')
         trans = s.get("transition", "fade")
         if i > 0 and trans != "cut":
             frm = '{x:160,opacity:0}' if trans == "slide" else '{opacity:0,scale:1.04}'
             js.append(f'tl.from("#s{i}",{{...{frm},duration:0.35,ease:"power2.out"}},{t0:.3f});')
-        js.append(f'tl.from("#s{i}hd .w",{{y:30,opacity:0,stagger:0.05,duration:0.4,ease:"power3.out"}},{t0 + 0.05:.3f});')
+        if not full_frame:
+          js.append(f'tl.from("#s{i}hd .w",{{y:30,opacity:0,stagger:0.05,duration:0.4,ease:"power3.out"}},{t0 + 0.05:.3f});')
         js += vis_js
 
     for c_i, c in enumerate(caps):
@@ -288,6 +307,9 @@ def build(storyboard: dict, timings: list[dict], caps: list[dict], workdir: Path
            '\ntl.set({}, {}, ' + f'{duration:.3f}' + ');\nwindow.__timelines=window.__timelines||{};window.__timelines.main=tl;</script>'
            '</body></html>')
     (proj / "index.html").write_text(doc, encoding="utf-8")
+    if custom_report:
+        import json as _json
+        (workdir / "custom_scenes_report.json").write_text(_json.dumps(custom_report, indent=1))
     return proj
 
 

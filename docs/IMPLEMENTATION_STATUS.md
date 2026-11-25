@@ -1,6 +1,6 @@
 # Implementation status (resume here)
 
-_Last updated: 2026-11-24_
+_Last updated: 2026-11-25_
 
 ## Done (code + tests in this repo)
 - Config with fail-safe flags; workflow states + compare-and-set transitions; JSON and Sheets stores.
@@ -85,6 +85,16 @@ _Last updated: 2026-11-24_
 - Scheduled sessions cannot read usage limits (no get_session/list_events): `budget --unknown`
   returns go_lean without inventing numbers; weekly-limit cases are covered by the 12:30 watchdog.
 - Fresh containers can have `pip` for a different Python than `python`: always `python -m pip`.
+
+## Added (2026-11-25: director + camera man)
+- Custom scenes: the scene-coder agent (Sonnet, "camera man") writes HTML+GSAP per scene from the
+  director's (Opus) shot brief; `custom_scene.check` enforces prefixed ids, no scripts/URLs/timers,
+  timeline-only JS; a rejected scene falls back to a title card and is reported.
+- `ytauto frames` (review sheet, 2 frames per scene) for the director's review; demo verified: the
+  director found the +33% tag inside the YouTube button zone, fixed the code, re-rendered (2 rounds).
+- `ytauto analyze-reference`: cut rate, shot length, wpm, hook, contact sheets of reference videos.
+  yt-dlp from the cloud is blocked by YouTube (429 / "sign in to confirm you're not a bot"); the
+  owner downloads references on their PC and puts them in Drive 01_Inbox/References/Style.
 
 ## Test results
 `python -m pytest -q` → 140 passed (real renders, real Kokoro synthesis, Apps Script parity).

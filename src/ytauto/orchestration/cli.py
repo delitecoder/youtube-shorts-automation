@@ -615,6 +615,60 @@ def cmd_apps_script_check(ctx: Ctx, a) -> int:
     return 0
 
 
+def cmd_analyze_reference(ctx: Ctx, a) -> int:
+    """Analyse reference videos (Drive References/Style, or --dir) for the director. Compact output;
+    contact sheets are written to runtime/reference/ for the director to view."""
+    from ..production import reference as ref
+    out_dir = RUNTIME_DIR / "reference"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    src = Path(a.dir) if a.dir else out_dir / "videos"
+    if not a.dir:
+        src.mkdir(exist_ok=True)
+        style = _style_folder(ctx)
+        q = f"'{style}' in parents and trashed = false"
+        for f in ctx.drive.svc.files().list(q=q, fields="files(id,name,size)", pageSize=50).execute().get("files", []):
+            if f["name"].lower().endswith((".mp4", ".webm", ".mkv", ".mov", ".vtt")) and not (src / f["name"]).exists():
+                req = ctx.drive.svc.files().get_media(fileId=f["id"])
+                from googleapiclient.http import MediaIoBaseDownload
+                with open(src / f["name"], "wb") as fh:
+                    dl, done = MediaIoBaseDownload(fh, req, chunksize=16 * 1024 * 1024), False
+                    while not done:
+                        _, done = dl.next_chunk(num_retries=3)
+    vids = sorted(p for p in src.iterdir() if p.suffix.lower() in (".mp4", ".webm", ".mkv", ".mov"))
+    if not vids:
+        out({"ok": False, "error": f"no reference videos in {src} (owner: put them in Drive "
+                                    "YouTubeAutomation/01_Inbox/References/Style)"})
+        return 2
+    results = [ref.analyze(v, out_dir) for v in vids[: a.limit]]
+    ref.save(results, out_dir / "analysis.json")
+    out({"ok": True, "videos": results})
+    return 0
+
+
+def _style_folder(ctx: Ctx) -> str:
+    """Drive folder References/Style (created on first use) for owner-supplied reference videos."""
+    parent = ctx.s.folder("inbox_references")
+    q = (f"name = 'Style' and mimeType = 'application/vnd.google-apps.folder' and trashed = false "
+         f"and '{parent}' in parents")
+    hits = ctx.drive.svc.files().list(q=q, fields="files(id)").execute().get("files", [])
+    if hits:
+        return hits[0]["id"]
+    return ctx.drive.svc.files().create(body={"name": "Style", "mimeType": "application/vnd.google-apps.folder",
+                                              "parents": [parent]}, fields="id").execute()["id"]
+
+
+def cmd_frames(ctx: Ctx, a) -> int:
+    """Director review: one image with 2 frames per scene of the rendered video."""
+    from ..production import reference as ref
+    wd = WORK / a.video_id
+    timings = json.loads((wd / "timings.json").read_text())["timings"]
+    sheet = ref.scene_frames(wd / f"{a.video_id}.mp4", timings, wd / "review_sheet.png")
+    rep = wd / "custom_scenes_report.json"
+    out({"ok": True, "sheet": str(sheet), "scenes": len(timings),
+         "custom_scenes": json.loads(rep.read_text()) if rep.exists() else []})
+    return 0
+
+
 def cmd_audit(ctx: Ctx, a) -> int:
     """Daily views audit: analyse the channel, store guidance for the storywriter, email the owner."""
     from ..analytics import audit as au
@@ -780,6 +834,8 @@ def main(argv=None) -> int:
     p = sub.add_parser("peak-time"); p.add_argument("--refresh", action="store_true")
     p = sub.add_parser("audit"); p.add_argument("--email", action="store_true")
     sub.add_parser("apps-script-check")
+    p = sub.add_parser("analyze-reference"); p.add_argument("--dir"); p.add_argument("--limit", type=int, default=6)
+    p = sub.add_parser("frames"); p.add_argument("--video-id", required=True)
     p = sub.add_parser("budget")
     p.add_argument("--five-hour", type=float, help="five_hour utilization 0-1")
     p.add_argument("--five-reset", type=int, help="five_hour resetsAt (epoch s)")
