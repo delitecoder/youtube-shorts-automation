@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Installs the bundled fonts (Noto Sans Tamil, SIL OFL 1.1 — see renderer/fonts/OFL.txt) so the
+# Installs the bundled fonts (Noto Sans Tamil + Caveat, SIL OFL 1.1 — renderer/fonts/OFL-*.txt) so the
 # HyperFrames renderer (headless Chromium) can draw Tamil text. Idempotent; safe to run every time.
 set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"

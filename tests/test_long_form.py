@@ -103,3 +103,22 @@ def test_discover_long_returns_next_syllabus_topic(tmp_path):
     assert d2["action"] == "resume" and d2["video_id"] == item["video_id"]
     # the Short pipeline is not blocked by the long item
     assert run(tmp_path / "rt", "discover")["action"] == "research"
+
+
+def test_stickman_scene_builds_rig_and_alternates_looks(tmp_path, monkeypatch):
+    nm = tmp_path / "nm" / "gsap" / "dist"
+    nm.mkdir(parents=True)
+    (nm / "gsap.min.js").write_text("")
+    monkeypatch.setattr(hf, "RENDERER_DIR", tmp_path)
+    (tmp_path / "node_modules").symlink_to(tmp_path / "nm")
+    sb = {"video_id": "VIDEO-20261126-001", "scenes": [
+        {"narration": "x", "on_screen_text": "Hi", "visual": {"type": "stickman", "text": "200M payments", "prop": "server",
+         "actions": [{"at": 0, "pose": "stand", "face": "happy"}, {"at": 0.5, "pose": "shocked", "face": "surprised"}]}}]}
+    doc = (hf.build(sb, [{"start": 0, "end": 4}], [], tmp_path / "w") / "index.html").read_text()
+    assert 's0st-torso' in doc and "feTurbulence" in doc and "200M payments" in doc and "#FDFDFC" in doc
+    assert hf.palette_for(sb)["name"] == "paper"
+    assert hf.palette_for(dict(sb, video_id="VIDEO-20261127-001"))["name"] != "paper"   # chalkboard day
+    errs, _ = sbm.validate_storyboard(dict(sb, scenes=[sb["scenes"][0]] * 5, hooks=["a"] * 3, titles=["a"] * 3,
+                                            chosen_hook=0, chosen_title=0, topic="t", closing_question="Why?",
+                                            references=[{"url": "https://a.b/1"}] * 3))
+    assert not any("visual" in e for e in errs)

@@ -651,6 +651,7 @@ def cmd_submit(ctx: Ctx, a) -> int:
     credits = _credits_block(rec.video_id)
     if credits and "Credits:" not in meta["description"]:
         meta["description"] = meta["description"].rstrip() + credits
+    meta = sbmod.add_reach_tags(meta, long_, language_of(rec.video_id))
     errs = sbmod.validate_metadata(meta, long=long_)
     if review.get("verdict") != "pass":
         errs.append("quality review verdict is not 'pass'")

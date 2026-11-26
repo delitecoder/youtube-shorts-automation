@@ -32,6 +32,7 @@ VISUAL_TYPES = {
     "question": {"question"},
     "image": {"asset"},          # file name of an image fetched with `ytauto fetch-asset`
     "custom": {"code"},          # scene-coder (camera man) HTML+GSAP in scenes/<code>.html/.js
+    "stickman": {"actions"},     # code-drawn acting stick figure (production/stickman.py)
 }
 OUTRO_TYPE = "subscribe"         # added automatically by with_outro(); not written by the storywriter
 TRANSITIONS = {"fade", "slide", "cut"}
@@ -128,8 +129,31 @@ SLOP = ("in today's fast-paced world", "in today's digital", "let's dive in", "l
         "seamlessly", "cutting-edge", "in conclusion", "picture this", "imagine a world")
 # Hashtags for other platforms or with no topic meaning: YouTube's policy treats misleading or
 # unrelated hashtags as spam (it may ignore or remove them); they bring no views.
-BANNED_HASHTAGS = {"#tiktok", "#fyp", "#foryou", "#foryoupage", "#reels", "#instagram", "#viral",
-                   "#viralvideo", "#trending", "#explore"}
+# Owner decision (2026-11-26): use the popular reach hashtags (#Shorts #viral #trending …), added
+# automatically by `submit`. Only other platforms' names stay out: YouTube treats them as unrelated.
+BANNED_HASHTAGS = {"#tiktok", "#fyp", "#foryou", "#foryoupage", "#reels", "#instagram", "#instareels"}
+REACH_HASHTAGS = {"short": ["#Shorts", "#viral", "#trending", "#shortsfeed", "#ytshorts"],
+                  "long": ["#viral", "#trending", "#youtube"]}
+REACH_TAGS = ["shorts", "viral", "trending"]
+
+
+def add_reach_tags(m: dict, long: bool, lang: str = "en") -> dict:
+    """Append the popular hashtags/tags the owner asked for, without duplicates or overflow."""
+    m = dict(m)
+    d = m.get("description", "").rstrip()
+    have = {h.lower() for h in HASHTAG_RE.findall(d)}
+    extra = [h for h in REACH_HASHTAGS["long" if long else "short"] + (["#tamil"] if lang == "ta" else [])
+             if h.lower() not in have]
+    room = max(0, 10 - len(have))
+    if extra[:room]:
+        d += (" " if d.splitlines() and d.splitlines()[-1].lstrip().startswith("#") else "\n") + " ".join(extra[:room])
+    m["description"] = d
+    tags = list(m.get("tags", []))
+    for t in REACH_TAGS:
+        if t not in [x.lower() for x in tags] and len(tags) < 15 and sum(len(x) + 1 for x in tags) + len(t) < 480:
+            tags.append(t)
+    m["tags"] = tags
+    return m
 
 
 def slop_check(sb: dict) -> list[str]:
@@ -328,8 +352,8 @@ def validate_metadata(m: dict, long: bool = False) -> list[str]:
     tags_in_desc = HASHTAG_RE.findall(d)
     if len(tags_in_desc) > 15:
         e.append("more than 15 hashtags (YouTube ignores all of them)")
-    if not 3 <= len(tags_in_desc) <= 6:
-        e.append(f"{len(tags_in_desc)} hashtags in the description; use 3–5 (the first 3 show above the title)")
+    if not 3 <= len(tags_in_desc) <= 10:
+        e.append(f"{len(tags_in_desc)} hashtags in the description; use 3–10 (the first 3 show above the title)")
     if long and not re.search(r"(?m)^0:00 ", d):
         e.append("long-form description needs chapters starting at 0:00 (added by submit from the storyboard)")
     bad = sorted({h.lower() for h in tags_in_desc} & BANNED_HASHTAGS)

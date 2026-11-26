@@ -98,4 +98,15 @@ def test_slop_phrases_and_spam_hashtags_rejected():
     m = {"title": "Anthropic IPO opens 34% up", "tags": [f"t{i}" for i in range(9)], "category_id": "28",
          "pinned_comment": "Buy?", "description": "Line\n#Shorts #AI #TikTok #viral"}
     errs = sbm.validate_metadata(m)
-    assert any("#tiktok" in e and "#viral" in e for e in errs)
+    assert any("#tiktok" in e for e in errs) and not any("#viral" in e for e in errs)
+
+
+def test_reach_hashtags_added_once():
+    m = {"title": "t", "tags": ["ai"], "description": "Hook line\n#Shorts #AI"}
+    out = sbm.add_reach_tags(m, long=False)
+    tags_line = out["description"].splitlines()[-1]
+    assert "#viral" in tags_line and "#trending" in tags_line and tags_line.lower().split().count("#shorts") == 1
+    assert {"shorts", "viral", "trending"} <= set(out["tags"])
+    assert sbm.add_reach_tags(out, long=False)["description"] == out["description"]
+    lng = sbm.add_reach_tags({"description": "x\n#SystemDesign", "tags": []}, long=True, lang="ta")
+    assert "#shorts" not in lng["description"].lower() and "#tamil" in lng["description"]

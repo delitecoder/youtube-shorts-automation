@@ -20,6 +20,15 @@ colour flood / cut), a title entrance (per-word blur, grey→ink, line blur) and
 (highlight / pill / underline), so consecutive days never look or move the same.
 A storyboard may pin them: `"palette": "blueprint"`, `"style": {"transitions": [...], "title": "...", "captions": "..."}`.
 
+## Stickman (main look for Shorts since 2026-11-26)
+Code-drawn stick figure (`production/stickman.py`, visual type `stickman`), after Stickman Video
+Director's B1 Minimal Line Art style (MIT, github.com/kaomei/stickman-video-director; no code or
+assets copied, no image generation): slender ink figure with a hand-drawn line boil, big Caveat
+handwriting, coloured props, keyed poses with anticipation, head leading, held reactions.
+Looks alternate by day: warm paper (ink on #FDFDFC, faint grid) / chalkboard (white ink on the
+day's dark palette). Director review: the face must stay visible, the text must not touch the
+figure or prop, every pose change must land on the line that causes it.
+
 ## No AI slop
 - Script: no stock phrases (validation rejects them), concrete names/numbers/stakes only.
 - Motion: no pulsing/breathing/floating loops, no creeping zooms, no bounce on UI, no identical

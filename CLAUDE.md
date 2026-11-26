@@ -120,7 +120,9 @@ belong to a different Python than `python` in fresh containers). Work files go i
    Still failing → stop and report (item stays in its state for a human).
 7b. Director pass (you, Opus, are the director): for the 2–4 most important scenes write a short
    shot brief (second-by-second visuals, layout, motion, colours, text, timing from the narration)
-   (apply `insights.style_notes` and docs/STYLE_REFERENCE.md; vary layouts from yesterday's video)
+   (apply `insights.style_notes` and docs/STYLE_REFERENCE.md; vary layouts from yesterday's video;
+   Shorts are stickman-led: check the storywriter's `stickman` scenes act the narration — fix poses,
+   faces and timing in storyboard.json yourself; use custom scenes for the evidence/diagrams)
    and set those scenes' visual to `{"type": "custom", "code": "sceneN"}` (add `"full_frame": true`
    for big diagrams). Send each brief to the **scene-coder** (Sonnet) agent with the video id, the
    scene name and its id prefix `s<index0>-` (scene 1 → `s0-`). Style reference: docs/STYLE_REFERENCE.md.

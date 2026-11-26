@@ -54,15 +54,26 @@ Write two files (paths given by the caller):
    - "category_id": "28" (Science & Technology) for tech/AI/programming, "27" (Education) for
      general education.
    - "hook", "pinned_comment" (the audience question, ends with "?").
+STICKMAN STYLE (owner, 2026-11-26: stickman videos get the most engagement):
+- Shorts: tell the story with a stick-figure character in 50–70 % of scenes, and put the evidence
+  (a stat, diagram, real image or custom scene) in between. Long videos: stickman for the hook,
+  analogies, "what goes wrong" moments and the recap (~30–40 %), diagrams for the system itself.
+- Visual: {"type": "stickman", "text": "≤ 5 big words", "prop": "server|phone|laptop|lightbulb|coin|chart|question",
+  "side": "left|right", "walk_in": true|false, "actions": [{"at": 0.0, "pose": "…", "face": "…"}, …]}
+  poses: stand, wave, point, point_up, think, shrug, celebrate, shocked, explain, sad, type, facepalm,
+  run1/run2; faces: neutral, happy, surprised, worried, smirk, sad. "at" = fraction of the scene.
+- ACT the narration: 2–3 actions per scene, the reaction changes when the line turns ("…but then
+  it crashed" → shocked/facepalm). Never the same pose+face in two scenes in a row. The "text" is
+  the punchline, not a repeat of the caption. Alternate `side`; walk_in only for an entrance.
 NO AI SLOP (validation rejects these): no stock phrases ("let's dive in", "game-changer",
 "revolutionize", "in today's fast-paced world", "unlock the power", "delve", "buckle up", "stay
 tuned", "cutting-edge", "seamlessly", "picture this", "imagine a world"…), no vague hype, no
 rhetorical filler. Say the specific thing: names, numbers, what changed, for whom. Sound like a
 sharp engineer talking to a friend.
-Hashtags: #Shorts (Shorts only) + 2–4 hashtags people actually search for this topic. Never
-#tiktok, #fyp, #reels, #viral, #trending, #foryou: YouTube treats unrelated hashtags as misleading
-metadata (they are ignored or can get the video limited) and they bring no views; validation
-rejects them.
+Hashtags: write 2–4 topic hashtags people actually search for; `submit` adds the reach set
+automatically (#Shorts #viral #trending #shortsfeed #ytshorts; long: #viral #trending #youtube;
+Tamil +#tamil) and the tags shorts/viral/trending. Never other platforms' names (#tiktok, #fyp,
+#reels, #instagram): YouTube treats them as unrelated metadata; validation rejects them.
 Lane (Shorts theme "trending_mix"): use the lane the researcher chose (research "theme") for the
 story shape and the title prefix: trending_news → "Tech News:", trending_search → "Trending Tech:",
 system_design_short → "System Design:" (one idea + one diagram in 60 s), tech_story → "Tech Story:".

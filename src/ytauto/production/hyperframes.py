@@ -86,9 +86,22 @@ def _transition(sid: str, kind: str, t0: float, accent: str) -> list[str]:
     return []
 
 
+PAPER = {"name": "paper", "light": True, "accents": ["#e5484d", "#f5a524", "#3bb273", "#2f6fde"],
+         "bg": "#FDFDFC"}   # stickman look (warm paper, ink lines); never in the daily rotation
+
+
 def palette_for(storyboard: dict) -> dict:
-    """Explicit storyboard "palette" (index or name) wins; else rotate by the video's date."""
+    """Explicit storyboard "palette" (index or name) wins; stickman videos use paper; else rotate
+    by the video's date."""
     p = storyboard.get("palette")
+    stick = any(s.get("visual", {}).get("type") == "stickman" for s in storyboard.get("scenes", []))
+    if p == "paper":
+        return PAPER
+    if p is None and stick:                     # stickman days alternate paper / chalkboard looks
+        digits = "".join(ch for ch in storyboard.get("video_id", "") if ch.isdigit())
+        day = int(digits[:8]) if len(digits) >= 8 else 0
+        if day % 2 == 0:
+            return PAPER
     if isinstance(p, int):
         return PALETTES[p % len(PALETTES)]
     if isinstance(p, str):
@@ -333,6 +346,7 @@ def build(storyboard: dict, timings: list[dict], caps: list[dict], workdir: Path
     ACCENTS = list(pal["accents"])
     global TITLE_KIND
     sty = style_for(storyboard)
+    cap_ink = "#1d2433" if pal.get("light") else "#ffffff"
     TITLE_KIND = sty["title"]
     proj = workdir / "hf"
     if proj.exists():
@@ -384,7 +398,10 @@ def build(storyboard: dict, timings: list[dict], caps: list[dict], workdir: Path
         accent = ACCENTS[i % 4]
         v = s["visual"]
         full_frame = False
-        if v.get("type") == "custom":                 # camera-man code, checked before use
+        if v.get("type") == "stickman":               # code-drawn acting stick figure
+            from . import stickman as stk
+            vis_html, vis_js = stk.visual(i, v, t0, dur, accent, long_, dark=not pal.get("light"))
+        elif v.get("type") == "custom":               # camera-man code, checked before use
             from .custom_scene import SceneRejected, load, wrap_js
             prefix = f"s{i}-"
             try:
@@ -422,14 +439,18 @@ def build(storyboard: dict, timings: list[dict], caps: list[dict], workdir: Path
         col = ACCENTS[si % 4]
         on, off = {"pill": (f'backgroundColor:"{col}",color:"#0b0d18"', 'backgroundColor:"rgba(0,0,0,0)",color:"#ffffff"'),
                    "underline": (f'boxShadow:"inset 0 -10px 0 {col}"', 'boxShadow:"inset 0 0 0 rgba(0,0,0,0)"'),
-                   }.get(sty["captions"], (f'color:"{col}"', 'color:"#ffffff"'))
+                   }.get(sty["captions"], (f'color:"{col}"', f'color:"{cap_ink}"'))
+        if sty["captions"] == "pill":
+            off = off.replace('color:"#ffffff"', f'color:"{cap_ink}"')
         for j, w in enumerate(c["words"]):
             js.append(f'tl.to("#c{c_i}w{j}",{{{on},duration:0.06}},{w[1]:.3f});')
             js.append(f'tl.to("#c{c_i}w{j}",{{{off},duration:0.06}},{w[2]:.3f});')
 
+    from . import stickman as stk
     css = CSS.replace("background:radial-gradient(1200px 900px at 20% 10%,#1d2a5c 0%,transparent 60%),"
                       "radial-gradient(900px 900px at 90% 80%,#3a1747 0%,transparent 60%),linear-gradient(#0a0e20,#151030);",
-                      f"background:{pal['bg']};") + (CSS_LONG if long_ else "")
+                      f"background:{pal['bg']};") + (CSS_LONG if long_ else "") + stk.CSS \
+        + (stk.CSS_LONG if long_ else "") + (stk.PAPER_CSS if pal.get("light") else "")
     doc = (f'<!doctype html><html><head><meta charset="utf-8"><style>{css}</style></head><body>'
            f'<div id="stage" data-composition-id="main" data-start="0" data-duration="{duration:.3f}" '
            f'data-width="{w_px}" data-height="{h_px}" data-fps="{FPS}">{"".join(body)}</div>'

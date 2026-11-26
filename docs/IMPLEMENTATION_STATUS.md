@@ -146,6 +146,16 @@ _Last updated: 2026-11-25_
 - Instagram reels cannot be fetched from the cloud without login (yt-dlp is redirected to login);
   the owner downloads them on their computer and puts them in Drive References/Style.
 
+## Added (2026-11-26: stickman + reach hashtags)
+- `stickman` visual type (production/stickman.py): code-drawn SVG stick figure with keyed poses
+  (14), faces (6), props (7), walk-in, hand-drawn line boil, Caveat handwriting (bundled, OFL).
+  Style after Stickman Video Director B1 (MIT; method only, no image generation). Looks alternate
+  daily: paper (ink on white) / chalkboard (white ink on the day's dark palette). Shorts are
+  stickman-led (50–70 % of scenes); long videos use it for hooks/analogies/recap.
+- Owner decision: reach hashtags added by `submit` (#Shorts #viral #trending #shortsfeed #ytshorts;
+  long #viral #trending #youtube; Tamil +#tamil) and tags shorts/viral/trending. Other platforms'
+  names (#tiktok, #fyp, #reels, #instagram) stay blocked.
+
 ## Test results
 `python -m pytest -q` → 140 passed (real renders, real Kokoro synthesis, Apps Script parity).
 Mutation check: removing the SENT-label check, request-time check, or checksum check makes tests fail.

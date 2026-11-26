@@ -274,7 +274,8 @@ def render(storyboard: dict, scene_audio: list[Path], workdir: Path, out_mp4: Pa
     storyboard = normalize(storyboard)
     long_ = storyboard.get("format") == "long"
     # Pillow cannot shape Tamil script and has no 16:9 layout: those need HyperFrames
-    hf_only = long_ or storyboard.get("language", "en") != "en"
+    hf_only = long_ or storyboard.get("language", "en") != "en" or any(
+        s["visual"].get("type") == "stickman" for s in storyboard["scenes"])
     if hf_only and engine == "pillow":
         raise RuntimeError("long-form and Tamil videos need the HyperFrames engine")
     scenes = storyboard["scenes"]
