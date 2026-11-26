@@ -1013,27 +1013,31 @@ def cmd_scene_frames(ctx: Ctx, a) -> int:
     proj = hfr.build(full, timings, caps, wd, (sb.get("series_label") or "TECH").upper(), logo=logo)
     hf = str(hfr.RENDERER_DIR / "node_modules" / ".bin" / "hyperframes")
     want = [int(x) for x in str(a.scene).split(",")] if a.scene != "all" else range(1, len(full["scenes"]) + 1)
-    sheets = []
-    for n in want:
+    times = {}
+    for n in want:                                   # 3 stills per scene, ONE browser session for all
         tm = timings[n - 1]
         d = tm["end"] - tm["start"]
-        at = ",".join(f"{tm['start'] + f * d:.2f}" for f in (0.2, 0.55, 0.9))
-        snap = wd / "scene_frames" / f"scene{n}"
-        if snap.exists():
-            shutil.rmtree(snap)
-        subprocess.run([hf, "snapshot", str(proj), "--at", at, "--no-end", "--output", str(snap)],
-                       capture_output=True, text=True, timeout=600)
-        pngs = sorted(snap.glob("*.png"))
+        times[n] = [round(tm["start"] + f * d, 2) for f in (0.2, 0.55, 0.9)]
+    snap = wd / "scene_frames" / "stills"
+    if snap.exists():
+        shutil.rmtree(snap)
+    allt = ",".join(f"{t:.2f}" for ts in times.values() for t in ts)
+    subprocess.run([hf, "snapshot", str(proj), "--at", allt, "--no-end", "--keep", "--output", str(snap),
+                    "--timeout", "170000"], capture_output=True, text=True, timeout=3600)
+    def still(t):
+        return snap / f"at-{(f'{t:.2f}').rstrip('0').rstrip('.')}s.png"
+    sheets = []
+    for n, ts in times.items():
+        pngs = [still(t) for t in ts if still(t).exists()]
         if not pngs:
             sheets.append({"scene": n, "error": "snapshot failed"})
             continue
         strip = wd / "scene_frames" / f"scene{n}.png"
         subprocess.run(["ffmpeg", "-v", "error", "-y", *sum([["-i", str(p)] for p in pngs], []), "-filter_complex",
-                        "".join(f"[{k}:v]scale=-2:640[v{k}];" for k in range(len(pngs)))
+                        "".join(f"[{k}:v]scale=-2:{360 if long_ else 640}[v{k}];" for k in range(len(pngs)))
                         + "".join(f"[v{k}]" for k in range(len(pngs))) + f"hstack=inputs={len(pngs)}",
                         str(strip)], check=False)
-        sheets.append({"scene": n, "strip": str(strip), "narration": full["scenes"][n - 1]["narration"][:160],
-                       "times": at})
+        sheets.append({"scene": n, "strip": str(strip), "narration": full["scenes"][n - 1]["narration"][:160]})
     out({"ok": True, "scenes": sheets, "next": "scene-reviewer per strip → fix storyboard/scene code → re-run for that scene"})
     return 0
 

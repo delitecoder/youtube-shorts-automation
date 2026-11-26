@@ -174,7 +174,7 @@ def add_reach_tags(m: dict, long: bool, lang: str = "en", channel: dict | None =
     tags = list(m.get("tags", []))
     hist = [t for t in (channel or {}).get("tags", []) if t in GENERIC_TAGS
             and not (lang != "ta" and "tamil" in t) and not (long and "short" in t)]
-    for t in REACH_TAGS + hist:
+    for t in [x for x in REACH_TAGS if not (long and "short" in x)] + hist:
         if t not in [x.lower() for x in tags] and len(tags) < 15 and sum(len(x) + 1 for x in tags) + len(t) < 480:
             tags.append(t)
     m["tags"] = tags
