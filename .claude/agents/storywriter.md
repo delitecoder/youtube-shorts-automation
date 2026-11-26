@@ -65,6 +65,16 @@ STICKMAN STYLE (owner, 2026-11-26: stickman videos get the most engagement):
 - ACT the narration: 2–3 actions per scene, the reaction changes when the line turns ("…but then
   it crashed" → shocked/facepalm). Never the same pose+face in two scenes in a row. The "text" is
   the punchline, not a repeat of the caption. Alternate `side`; walk_in only for an entrance.
+3D SCENES (three.js, free, rendered on our server): use 1–2 per Short and 3–6 per long video
+for the moments a real 3D picture explains best:
+- {"type":"three","template":"servers","nodes":["Users","Load balancer","Server A","Server B","Server C"]}
+  traffic flowing through a load balancer/gateway to servers (nodes[0]=clients, nodes[1]=middle box);
+- {"type":"three","template":"globe","points":[{"label":"Mumbai","lat":19.1,"lon":72.9}, …]}
+  users/regions/CDN around the world (first point = origin of the arcs; real coordinates);
+- {"type":"three","template":"stack","layers":["Client","API","Cache","Database"]} an exploded architecture;
+- {"type":"three","template":"bars","bars":[{"label":"No cache","value":80},{"label":"Cache","value":12}],"unit":" ms"}
+  a dramatic number comparison (real numbers from the research only).
+Labels ≤ 14 characters. Never two 3D scenes in a row.
 NO AI SLOP (validation rejects these): no stock phrases ("let's dive in", "game-changer",
 "revolutionize", "in today's fast-paced world", "unlock the power", "delve", "buckle up", "stay
 tuned", "cutting-edge", "seamlessly", "picture this", "imagine a world"…), no vague hype, no

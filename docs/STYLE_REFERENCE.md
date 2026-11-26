@@ -29,6 +29,14 @@ Looks alternate by day: warm paper (ink on #FDFDFC, faint grid) / chalkboard (wh
 day's dark palette). Director review: the face must stay visible, the text must not touch the
 figure or prop, every pose change must land on the line that causes it.
 
+## 3D (three.js)
+`renderer/hyperframes/three_scenes.js` (three.js 0.170, MIT; WebGL in headless Chromium, no GPU
+needed): templates servers / globe / stack / bars, drawn purely from timeline time, warm key +
+cool rim light, contact shadow, one camera dive, labels that follow objects and never overlap.
+About 5 s of render per second of 3D on this server; max 3 per Short, 8 per long video.
+Open-source image models (e.g. Qwen-Image, 20B) were evaluated and rejected: they need a large
+GPU; on this CPU-only server one image would take hours.
+
 ## No AI slop
 - Script: no stock phrases (validation rejects them), concrete names/numbers/stakes only.
 - Motion: no pulsing/breathing/floating loops, no creeping zooms, no bounce on UI, no identical

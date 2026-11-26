@@ -335,6 +335,25 @@ CSS_LONG = """
 """
 
 
+# three.js: setup registers a build-ready promise (HyperFrames waits for it), then every frame is
+# drawn from the seek time (deterministic, see three_scenes.js).
+THREE_BOOT = ('<script>window.__hf=window.__hf||{};window.__hf.buildReady=window.__hf.buildReady||{};'
+              'window.__hf.buildReady.three=new Promise(function(r){window.__threeReady=r;});</script>'
+              '<script type="module">import * as THREE from "./three.module.min.js";'
+              'import {mountAll} from "./three_scenes.js";mountAll(THREE);window.__threeReady&&window.__threeReady();</script>')
+THREE_CSS = """
+.three-host{position:absolute;top:0;bottom:0;left:-90px;right:-60px}
+.custom-full .three-host{left:0;right:0}
+.three-host canvas{position:absolute;inset:0;width:100%;height:100%}
+.l3d-layer{position:absolute;inset:0;pointer-events:none}
+.l3d{position:absolute;transform:translate(-50%,-100%);font-weight:700;font-size:34px;color:#fff;white-space:nowrap;
+ background:rgba(10,14,32,.72);padding:6px 16px;border-radius:12px;border:2px solid rgba(255,255,255,.18)}
+.l3d.hl{border-color:#fbbf24}
+.l3d.side{transform:translate(-50%,0)}
+.l3d.val{font-size:52px;background:none;border:none;text-shadow:0 2px 10px #000}
+"""
+
+
 def build(storyboard: dict, timings: list[dict], caps: list[dict], workdir: Path,
           series_label: str = "TECH IN 60s", logo: str | None = None) -> Path:
     """Write <workdir>/hf/index.html (+ gsap + assets) and return the project dir.
@@ -393,12 +412,20 @@ def build(storyboard: dict, timings: list[dict], caps: list[dict], workdir: Path
     js.append(f'tl.fromTo("#prog",{{scaleX:0}},{{scaleX:1,duration:{duration:.2f},ease:"none"}},0);')
 
     custom_report: list[dict] = []
+    three_used = False
     for i, (s, tm) in enumerate(zip(scenes, timings)):
         t0, dur = tm["start"], tm["end"] - tm["start"]
         accent = ACCENTS[i % 4]
         v = s["visual"]
         full_frame = False
-        if v.get("type") == "stickman":               # code-drawn acting stick figure
+        if v.get("type") == "three":                  # three.js 3D template (renderer/hyperframes/three_scenes.js)
+            spec = {k: v[k] for k in ("template", "nodes", "points", "layers", "bars", "unit", "prefix") if k in v}
+            spec |= {"t0": round(t0, 3), "dur": round(dur, 3), "accents": ACCENTS}
+            full_frame = bool(v.get("full_frame"))
+            three_used = True
+            vis_html = f"<div class=\"three-host\" id=\"s{i}-3d\" data-three='{e(json.dumps(spec))}'></div>"
+            vis_js = [f'tl.from("#s{i}-3d",{{opacity:0,duration:0.3,ease:"power2.out"}},{t0 + 0.05:.3f});']
+        elif v.get("type") == "stickman":             # code-drawn acting stick figure
             from . import stickman as stk
             vis_html, vis_js = stk.visual(i, v, t0, dur, accent, long_, dark=not pal.get("light"))
         elif v.get("type") == "custom":               # camera-man code, checked before use
@@ -450,14 +477,17 @@ def build(storyboard: dict, timings: list[dict], caps: list[dict], workdir: Path
     css = CSS.replace("background:radial-gradient(1200px 900px at 20% 10%,#1d2a5c 0%,transparent 60%),"
                       "radial-gradient(900px 900px at 90% 80%,#3a1747 0%,transparent 60%),linear-gradient(#0a0e20,#151030);",
                       f"background:{pal['bg']};") + (CSS_LONG if long_ else "") + stk.CSS \
-        + (stk.CSS_LONG if long_ else "") + (stk.PAPER_CSS if pal.get("light") else "")
+        + (stk.CSS_LONG if long_ else "") + (stk.PAPER_CSS if pal.get("light") else "") + THREE_CSS
     doc = (f'<!doctype html><html><head><meta charset="utf-8"><style>{css}</style></head><body>'
            f'<div id="stage" data-composition-id="main" data-start="0" data-duration="{duration:.3f}" '
            f'data-width="{w_px}" data-height="{h_px}" data-fps="{FPS}">{"".join(body)}</div>'
            f'<script src="gsap.min.js"></script><script>const tl=gsap.timeline({{paused:true}});\n'
            + "\n".join(js) +
            '\ntl.set({}, {}, ' + f'{duration:.3f}' + ');\nwindow.__timelines=window.__timelines||{};window.__timelines.main=tl;</script>'
-           '</body></html>')
+           + (THREE_BOOT if three_used else '') + '</body></html>')
+    if three_used:
+        shutil.copy(RENDERER_DIR / "node_modules" / "three" / "build" / "three.module.min.js", proj / "three.module.min.js")
+        shutil.copy(RENDERER_DIR / "three_scenes.js", proj / "three_scenes.js")
     (proj / "index.html").write_text(doc, encoding="utf-8")
     if custom_report:
         import json as _json

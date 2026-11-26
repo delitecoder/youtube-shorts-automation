@@ -33,6 +33,7 @@ VISUAL_TYPES = {
     "image": {"asset"},          # file name of an image fetched with `ytauto fetch-asset`
     "custom": {"code"},          # scene-coder (camera man) HTML+GSAP in scenes/<code>.html/.js
     "stickman": {"actions"},     # code-drawn acting stick figure (production/stickman.py)
+    "three": {"template"},       # three.js 3D: servers | globe | stack | bars (renderer/hyperframes/three_scenes.js)
 }
 OUTRO_TYPE = "subscribe"         # added automatically by with_outro(); not written by the storywriter
 TRANSITIONS = {"fade", "slide", "cut"}
@@ -156,8 +157,17 @@ def add_reach_tags(m: dict, long: bool, lang: str = "en") -> dict:
     return m
 
 
+THREE_TEMPLATES = {"servers", "globe", "stack", "bars"}
+
+
 def slop_check(sb: dict) -> list[str]:
     out = []
+    for i, sc in enumerate(sb.get("scenes", []), 1):
+        v = sc.get("visual", {})
+        if v.get("type") == "three" and v.get("template") not in THREE_TEMPLATES:
+            out.append(f"scene {i}: three.template must be one of {sorted(THREE_TEMPLATES)}")
+    if sum(1 for sc in sb.get("scenes", []) if sc.get("visual", {}).get("type") == "three") > (8 if is_long(sb) else 3):
+        out.append("too many 3D scenes (max 3 per Short, 8 per long video): each one renders slower")
     for i, sc in enumerate(sb.get("scenes", []), 1):
         low = sc.get("narration", "").lower()
         hit = [p for p in SLOP if p in low]

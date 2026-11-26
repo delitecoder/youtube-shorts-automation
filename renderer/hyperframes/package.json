@@ -5,6 +5,7 @@
   "license": "UNLICENSED",
   "dependencies": {
     "gsap": "3.13.0",
-    "hyperframes": "0.9.88"
+    "hyperframes": "0.9.88",
+    "three": "0.170.0"
   }
 }

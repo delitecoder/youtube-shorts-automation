@@ -156,6 +156,13 @@ _Last updated: 2026-11-25_
   long #viral #trending #youtube; Tamil +#tamil) and tags shorts/viral/trending. Other platforms'
   names (#tiktok, #fyp, #reels, #instagram) stay blocked.
 
+## Added (2026-11-26: 3D scenes)
+- three.js 0.170 (MIT) in the renderer package; `renderer/hyperframes/three_scenes.js` templates
+  servers / globe / stack / bars, visual type `three`, deterministic (hf-seek), build-ready promise,
+  label de-overlap. Verified live: WebGL renders in headless Chromium without a GPU (~5 s per 3D second).
+- Rejected: Qwen-Image and other open image models (need a large GPU; CPU-only server).
+- Rejected: Google Flow private endpoints with the owner's session (account security / terms).
+
 ## Test results
 `python -m pytest -q` → 140 passed (real renders, real Kokoro synthesis, Apps Script parity).
 Mutation check: removing the SENT-label check, request-time check, or checksum check makes tests fail.

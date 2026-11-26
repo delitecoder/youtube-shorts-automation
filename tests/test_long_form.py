@@ -122,3 +122,20 @@ def test_stickman_scene_builds_rig_and_alternates_looks(tmp_path, monkeypatch):
                                             chosen_hook=0, chosen_title=0, topic="t", closing_question="Why?",
                                             references=[{"url": "https://a.b/1"}] * 3))
     assert not any("visual" in e for e in errs)
+
+
+def test_three_scene_builds_and_copies_runtime(tmp_path, monkeypatch):
+    nm = tmp_path / "node_modules"
+    (nm / "gsap" / "dist").mkdir(parents=True)
+    (nm / "gsap" / "dist" / "gsap.min.js").write_text("")
+    (nm / "three" / "build").mkdir(parents=True)
+    (nm / "three" / "build" / "three.module.min.js").write_text("")
+    (tmp_path / "three_scenes.js").write_text("export function mountAll(){}")
+    monkeypatch.setattr(hf, "RENDERER_DIR", tmp_path)
+    sb = {"video_id": "VIDEO-20261126-001", "scenes": [{"narration": "x", "on_screen_text": "Load", "visual":
+          {"type": "three", "template": "servers", "nodes": ["Users", "LB", "A", "B"]}}]}
+    proj = hf.build(sb, [{"start": 0, "end": 3}], [], tmp_path / "w")
+    doc = (proj / "index.html").read_text()
+    assert "data-three=" in doc and "buildReady.three" in doc and "mountAll(THREE)" in doc
+    assert (proj / "three.module.min.js").exists() and (proj / "three_scenes.js").exists()
+    assert sbm.slop_check({"scenes": [{"visual": {"type": "three", "template": "spaceship"}}]})
