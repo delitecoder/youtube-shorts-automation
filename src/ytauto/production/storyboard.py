@@ -237,7 +237,7 @@ def chapter_block(chs: list[tuple[float, str]]) -> str:
 
 
 def validate_long(sb: dict, require_sources: bool = True) -> tuple[list[str], list[str]]:
-    """Long-form (16:9, ~6–8 min) system-design explainer."""
+    """Long-form (16:9, ~3–4 min since 2026-11-26) system-design story."""
     e, w = [], []
     for k in ("video_id", "topic", "hooks", "titles", "scenes", "closing_question"):
         if k not in sb:
@@ -250,13 +250,13 @@ def validate_long(sb: dict, require_sources: bool = True) -> tuple[list[str], li
         if not isinstance(sb.get(key), int) or not 0 <= sb[key] < len(sb[arr]):
             e.append(f"'{key}' must index into '{arr}'")
     scenes = sb["scenes"]
-    if not 30 <= len(scenes) <= 90:
-        e.append(f"{len(scenes)} scenes; need 30–90 (one visual beat every ~5–12 s)")
+    if not 18 <= len(scenes) <= 90:
+        e.append(f"{len(scenes)} scenes; need 18–90 (one visual beat every ~4–8 s)")
     if not scenes or not scenes[0].get("chapter"):
         e.append("scene 1 must start a chapter (e.g. \"chapter\": \"Intro\")")
     n_ch = sum(1 for s in scenes if s.get("chapter"))
-    if n_ch < 4:
-        e.append(f"{n_ch} chapters; need ≥ 4 (YouTube shows chapters from 3, viewers jump to them)")
+    if n_ch < 3:
+        e.append(f"{n_ch} chapters; need ≥ 3 (YouTube shows chapters from 3, viewers jump to them)")
     run = 1
     for i, s in enumerate(scenes, 1):
         if not s.get("narration", "").strip():
@@ -289,9 +289,9 @@ def validate_long(sb: dict, require_sources: bool = True) -> tuple[list[str], li
             w.append("first scene narration does not start with the chosen hook")
     est = estimate(sb)
     if est["est_seconds"] > 720:
-        e.append(f"estimated {est['est_seconds']}s; too long (target 6–8 min, hard cap 12 min)")
-    elif not 330 <= est["est_seconds"] <= 540:
-        w.append(f"estimated {est['est_seconds']}s outside the ~6–8 min target")
+        e.append(f"estimated {est['est_seconds']}s; too long (target 3–4 min, hard cap 12 min)")
+    elif not 170 <= est["est_seconds"] <= 270:
+        w.append(f"estimated {est['est_seconds']}s outside the ~3–4 min target (owner: shorter, never boring)")
     _char_check(sb, e, "long")
     e += slop_check(sb)
     custom = sum(1 for s in scenes if s.get("visual", {}).get("type") in ("custom", "story", "three"))

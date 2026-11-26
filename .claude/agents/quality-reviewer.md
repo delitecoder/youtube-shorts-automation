@@ -16,7 +16,7 @@ the render QC JSON). Check:
    something else is a major issue (name the scene and what it should show).
 4c. Audience fit: if `insights.search_terms` are given, the title/first line/tags use the matching
    viewer words where they honestly fit the topic (no keyword stuffing).
-(Long-form: structure = hook ≤ 15 s, chapters, a new open question every 60–90 s, 6–8 min.)
+(Long-form: structure = hook ≤ 15 s, chapters, a new open question every 60–90 s, 3–4 min.)
 5. Metadata: accurate title (≤100), no clickbait or keyword stuffing, ≤15 hashtags, relevant tags,
    pinned comment is a genuine question.
 6. Policy: original wording, no copyrighted material, no medical/financial advice, nothing

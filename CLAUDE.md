@@ -178,7 +178,7 @@ belong to a different Python than `python` in fresh containers). Work files go i
 Finish with a 5-line summary: item, state, title, warnings, next step. Keep model output compact;
 pass JSON files between agents rather than long prose.
 
-## Long-form workflow (daily 03:47 IST scheduled task; 16:9 system-design explainer, 6–8 min)
+## Long-form workflow (daily 03:47 IST scheduled task; 16:9 system-design explainer, 3–4 min)
 Same steps, rules and approval gate as the Short, with these differences:
 - `python -m ytauto discover --format long` → `resume` / `none` / `research` with `theme.topic` (the
   next system-design syllabus topic, or a ThemePlan row `long: <topic>`). `new-item --format long`

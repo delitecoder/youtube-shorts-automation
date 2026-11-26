@@ -56,7 +56,7 @@ def test_long_storyboard_errors():
     sb = _long_sb(n=10)
     del sb["scenes"][0]["chapter"]
     errs, _ = sbm.validate_storyboard(sb)
-    assert any("30–90" in e for e in errs) and any("scene 1 must start a chapter" in e for e in errs)
+    assert any("18–90" in e for e in errs) and any("scene 1 must start a chapter" in e for e in errs)
 
 
 def test_long_metadata_rules():

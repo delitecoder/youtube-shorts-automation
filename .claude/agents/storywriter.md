@@ -55,6 +55,19 @@ Write two files (paths given by the caller):
      general education.
    - "hook", "pinned_comment" (the audience question, ends with "?").
 READ rules.md FIRST (owner's rules; they win).
+RELATABLE, CONCRETE, NEVER BORING (owner feedback 2026-11-26 on a CDN video: "too long, boring,
+vague, not relatable"):
+- Open on a real moment Indian viewers have lived, with a clock ticking: the IPL final last over
+  buffering on the phone, IRCTC Tatkal at 10:00 AM, UPI failing in a Big Billion Days sale, the
+  results website down, a Swiggy order stuck. Name the app and the moment.
+- A character WANTS something right now and is about to lose it (stakes + emotion + a little
+  humour). The problem is felt before it is explained.
+- Characters TALK to each other in short dialogue lines (in narration: "Priya: …"), the narrator
+  only links; every scene has a reaction.
+- No abstract words alone ("boxes", "copies", "far away"): show one specific example every time
+  (which city, which app, how many seconds, what is on the screen).
+- One idea per video. Cut every sentence that does not move the story. End on the payoff + one
+  easy question.
 STORY FORMAT (every video): Question → Problem → Solution, told as a story in our stickman world.
 - Scene 1 narration is a real question the viewer cares about and ENDS WITH "?" (validation).
 - Problem: a cast member hits it (Arjun the developer, Priya the curious friend, Raju anna the shop
@@ -121,8 +134,9 @@ do not describe content you cannot verify.
 
 ## Long-form system-design video (when the caller says format "long")
 Storyboard gets `"format": "long"` (16:9, 1920×1080), `"theme": "system_design"`, `"series_label":
-"System Design"`. Target 6–8 minutes: ~950–1200 narration words, 35–70 scenes (one visual beat
-every ~5–12 s; never more than ~15 s on one visual).
+"System Design"`. Target 3–4 minutes (owner, 2026-11-26: the 6-minute version was "too long and
+boring"): ~430–600 narration words, 22–35 scenes, one beat every 4–8 s, never more than ~10 s on
+one visual.
 Attention structure (this is what keeps viewers watching):
 1. Hook (0–15 s): a concrete real-world moment ("You tap Send on WhatsApp. 40 ms later, a phone in
    another country buzzes. How?"), then promise exactly what they will be able to explain by the end.

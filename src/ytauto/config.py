@@ -67,7 +67,7 @@ CONTENT_THEMES = {
 # ResearchHistory topic_keys prevent repeats. A ThemePlan row still overrides a single day.
 CONTENT_ROTATION = ("trending_mix",) * 7                                # Mon … Sun
 
-# Long-form (16:9, 6–8 min) daily system-design explainers, taught in this order; `discover
+# Long-form (16:9, 3–4 min) daily system-design explainers, taught in this order; `discover
 # --format long` returns the first topic not yet in ResearchHistory. Owner can override per day
 # with a ThemePlan row whose theme starts with "long:" (e.g. "long: Design WhatsApp").
 SYSTEM_DESIGN_SYLLABUS = (
