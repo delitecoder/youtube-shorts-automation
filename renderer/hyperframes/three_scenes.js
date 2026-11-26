@@ -16,6 +16,7 @@ function base(THREE, canvas, w, h, accents) {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(38, w / h, 0.1, 200);
+  if (w / h > 1.5) { camera.zoom = 1.55; camera.updateProjectionMatrix(); }   // wide 16:9 frame: fill it
   scene.add(new THREE.HemisphereLight('#b9ccff', '#140c24', 0.9));
   const key = new THREE.DirectionalLight('#ffd9a8', 2.4); key.position.set(4, 7, 5); scene.add(key);
   const rim = new THREE.DirectionalLight('#7fd4ff', 1.6); rim.position.set(-6, 3, -5); scene.add(rim);

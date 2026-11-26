@@ -169,7 +169,7 @@ def _visual(i: int, v: dict, t0: float, dur: float, accent: str, images: dict) -
         for j, n in enumerate(nodes):
             parts.append(f'<div class="node" id="{sid}n{j}" style="border-color:{ACCENTS[j % 4]}">{e(n)}</div>')
             if j < len(nodes) - 1:
-                parts.append(f'<div class="arrow" id="{sid}a{j}" style="background:{accent}"></div>')
+                parts.append(f'<div class="arrow" id="{sid}a{j}" style="background:{accent};color:{accent}"></div>')
         out = f'<div class="diagram">{"".join(parts)}</div>'
         step = max(0.45, (dur - 1.0) / max(len(nodes), 1))
         for j in range(len(nodes)):
@@ -321,11 +321,14 @@ CSS_LONG = """
 .vis{left:160px;right:160px;top:240px;height:640px}
 .title h1{font-size:88px;margin:90px 0 0}
 .bullets li{font-size:50px;margin:0 0 46px 0}
-.diagram{flex-direction:row;justify-content:center;align-items:center;margin-top:200px}
-.node{width:auto;min-width:280px;max-width:400px;font-size:48px;padding:38px 30px}
-.arrow{width:90px;height:10px;margin:0 8px}
+.diagram{flex-direction:row;justify-content:center;align-items:center;margin-top:150px}
+.node{width:auto;min-width:300px;max-width:440px;font-size:54px;padding:46px 34px}
+.arrow{width:110px;height:10px;margin:0 22px 0 8px;position:relative}
+.arrow::after{content:"";position:absolute;right:-22px;top:-13px;border-left:26px solid currentColor;
+ border-top:18px solid transparent;border-bottom:18px solid transparent;color:inherit}
 .stat{margin-top:90px}
-.card{min-height:440px}
+.compare{gap:140px}.card{min-height:380px}.card h3{font-size:58px}.card li{font-size:48px;margin-bottom:22px}
+.vs{z-index:5;font-size:48px;padding:22px 26px}
 .timeline .line{height:560px}
 .imgwrap{left:200px;right:200px;height:600px}.imgcap{left:200px;top:610px}
 .code{font-size:36px;max-width:1300px;margin:20px auto 0}

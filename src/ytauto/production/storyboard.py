@@ -276,7 +276,7 @@ def validate_long(sb: dict, require_sources: bool = True) -> tuple[list[str], li
         d = _scene_secs(s.get("narration", ""), sb.get("language", "en"))
         if d > 20:
             w.append(f"scene {i}: ~{d:.0f}s on one visual; split it (attention drops after ~12 s)")
-        if i > 1 and v.get("type") == scenes[i - 2].get("visual", {}).get("type"):
+        if i > 1 and v.get("type") != "story" and v.get("type") == scenes[i - 2].get("visual", {}).get("type"):
             run += 1
             if run == 3:
                 w.append(f"scene {i}: third '{v.get('type')}' in a row; vary the visual (pattern interrupt)")
@@ -294,7 +294,7 @@ def validate_long(sb: dict, require_sources: bool = True) -> tuple[list[str], li
         w.append(f"estimated {est['est_seconds']}s outside the ~6–8 min target")
     _char_check(sb, e, "long")
     e += slop_check(sb)
-    custom = sum(1 for s in scenes if s.get("visual", {}).get("type") == "custom")
+    custom = sum(1 for s in scenes if s.get("visual", {}).get("type") in ("custom", "story", "three"))
     if custom < 4:
         w.append(f"only {custom} custom (camera-man) scenes; key diagrams should be custom (aim 6–12)")
     if not sb["closing_question"].strip().endswith("?"):

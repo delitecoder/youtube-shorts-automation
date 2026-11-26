@@ -23,6 +23,10 @@ import random
 from . import stickman as stk
 
 INK = "#1d2433"
+CHALK = "#f4f1ea"
+DARK_PLACES = ("server_room", "network")
+# where characters cannot stand (fractions of the width): furniture that would cut through them
+NO_STAND = {"office": [(0.5, 0.95)], "home": [(0.37, 0.47)], "shop": [(0.8, 0.98)]}
 # one world palette for every video (consistency); night variants darken the sky only
 SKY = {"day": ("#bfe3ff", "#eaf6ff"), "night": ("#1b2550", "#3a3f78")}
 WALL, FLOOR, WOOD, METAL = "#f6efe3", "#e2d6c3", "#c98b55", "#8e9bb0"
@@ -39,8 +43,9 @@ def e(s) -> str:
 
 
 # ------------------------------------------------------------------ cast accessories (head/torso coords)
-def _accessories(kind: str) -> tuple[str, str]:
+def _accessories(kind: str, ink: str = INK) -> tuple[str, str]:
     """(head_svg in head-centre coords, neck_svg in torso coords where the neck is at y=-170)."""
+    INK = ink  # noqa: N806 - accessories follow the character's ink (chalk on dark places)
     s = f'stroke="{INK}" stroke-width="5" stroke-linecap="round"'
     if kind == "glasses_hair":
         head = (f'<path d="M-40 -14 C-36 -52 34 -56 41 -16 L30 -34 L18 -26 L6 -38 L-6 -27 L-18 -38 L-28 -26 Z" fill="{INK}"/>'
@@ -64,19 +69,21 @@ def _accessories(kind: str) -> tuple[str, str]:
     return head, neck
 
 
-def _character(sid: str, who: str) -> str:
-    """The stickman rig with this cast member's look (torso colour + accessories)."""
+def _character(sid: str, who: str, dark: bool = False) -> str:
+    """The stickman rig with this cast member's look (torso colour + accessories).
+    dark=True (server room, network, night street): chalk-white ink so the figure stays readable."""
     look = CAST.get(who, CAST["arjun"])
-    svg = stk._figure(sid, INK, "#fffdf8")
-    head, neck = _accessories(look["acc"])
+    ink = CHALK if dark else INK
+    svg = stk._figure(sid, ink, "#1d2433" if dark else "#fffdf8")
+    head, neck = _accessories(look["acc"], ink)
     # coloured torso stroke (hoodie/shirt) under the ink line, accessories on head and neck
     torso_old = (f'<g id="{sid}-torso" transform="{stk._tf("torso", 0)}"><line x1="0" y1="0" x2="0" y2="-170" '
-                 f'stroke="{INK}" stroke-width="6" stroke-linecap="round" fill="none"/>')
+                 f'stroke="{ink}" stroke-width="6" stroke-linecap="round" fill="none"/>')
     assert torso_old in svg and f'<g id="{sid}-eyes">' in svg, "stickman rig changed: update world._character"
     svg = svg.replace(torso_old,
                       f'<g id="{sid}-torso" transform="{stk._tf("torso", 0)}">'
                       f'<line x1="0" y1="-8" x2="0" y2="-160" stroke="{look["torso"]}" stroke-width="22" stroke-linecap="round"/>'
-                      f'<line x1="0" y1="0" x2="0" y2="-170" stroke="{INK}" stroke-width="6" stroke-linecap="round" fill="none"/>'
+                      f'<line x1="0" y1="0" x2="0" y2="-170" stroke="{ink}" stroke-width="6" stroke-linecap="round" fill="none"/>'
                       f'{neck}', 1)
     svg = svg.replace(f'<g id="{sid}-eyes">', f'{head}<g id="{sid}-eyes">', 1)
     return svg
@@ -287,17 +294,19 @@ def location(loc: str, W: int, H: int, sid: str, time: str, sign: str, seed: int
             if sign:
                 room += _board(int(W * 0.36), int(H * 0.05), int(W * 0.34), int(H * 0.14), sid, sign)
         elif loc == "home":
-            furn = (f'<rect x="{int(W * 0.5)}" y="{gy - 120}" width="{int(W * 0.42)}" height="120" rx="30" fill="#e5484d" stroke="{INK}" stroke-width="6"/>'
-                    f'<rect x="{int(W * 0.5)}" y="{gy - 190}" width="{int(W * 0.42)}" height="90" rx="30" fill="#f07075" stroke="{INK}" stroke-width="6"/>'
-                    f'<line x1="{int(W * 0.42)}" y1="{gy}" x2="{int(W * 0.42)}" y2="{gy - 260}" stroke="{INK}" stroke-width="6"/>'
+            fg = (f'<rect x="{int(W * 0.5)}" y="{gy - 120}" width="{int(W * 0.42)}" height="120" rx="30" fill="#e5484d" stroke="{INK}" stroke-width="6"/>'
+                    f'<rect x="{int(W * 0.5)}" y="{gy - 190}" width="{int(W * 0.42)}" height="90" rx="30" fill="#f07075" stroke="{INK}" stroke-width="6"/>')
+            furn = (f'<line x1="{int(W * 0.42)}" y1="{gy}" x2="{int(W * 0.42)}" y2="{gy - 260}" stroke="{INK}" stroke-width="6"/>'
                     f'<path d="M{int(W * 0.42) - 50} {gy - 260} h100 l-24 -70 h-52 Z" fill="#ffd84d" stroke="{INK}" stroke-width="5"/>')
             room += clock + (_board(int(W * 0.55), int(H * 0.08), int(W * 0.32), int(H * 0.2), sid, sign, "screen") if sign else "")
         elif loc == "shop":
-            furn = (f'<rect x="{int(W * 0.5)}" y="{gy - 200}" width="{int(W * 0.45)}" height="200" fill="{WOOD}" stroke="{INK}" stroke-width="6"/>'
+            fg = (f'<rect x="{int(W * 0.5)}" y="{gy - 200}" width="{int(W * 0.45)}" height="200" fill="{WOOD}" stroke="{INK}" stroke-width="6"/>'
                     f'<rect x="{int(W * 0.5)}" y="{gy - 214}" width="{int(W * 0.45)}" height="20" fill="#a26a3c" stroke="{INK}" stroke-width="5"/>'
                     f'<rect x="{int(W * 0.84)}" y="{gy - 330}" width="80" height="110" rx="8" fill="#fff" stroke="{INK}" stroke-width="5"/>'
-                    + "".join(f'<rect x="{int(W * 0.84) + 14 + (k % 3) * 18}" y="{gy - 310 + (k // 3) * 22}" width="14" height="14" fill="{INK}"/>' for k in range(9))
-                    + "".join(f'<rect x="{int(W * 0.55) + k * 70}" y="{gy - 420}" width="54" height="70" rx="6" fill="{c}" stroke="{INK}" stroke-width="4"/>'
+                    + "".join(f'<rect x="{int(W * 0.84) + 14 + (k % 3) * 18}" y="{gy - 310 + (k // 3) * 22}" width="14" height="14" fill="{INK}"/>' for k in range(9)))
+            shelf_y = int(H * 0.16)                # high wall shelf: above every head
+            furn = (f'<rect x="{int(W * 0.5)}" y="{shelf_y + 64}" width="{int(W * 0.45)}" height="10" fill="{WOOD}" stroke="{INK}" stroke-width="4"/>'
+                    + "".join(f'<rect x="{int(W * 0.53) + k * int(W * 0.1)}" y="{shelf_y}" width="{int(W * 0.07)}" height="64" rx="6" fill="{c}" stroke="{INK}" stroke-width="4"/>'
                               for k, c in enumerate(["#f5a524", "#3bb273", "#2f6fde", "#e5484d"])))
             banner = (f'<rect x="{int(W * 0.04)}" y="{int(H * 0.03)}" width="{int(W * 0.92)}" height="{int(H * 0.11)}" fill="#e5484d" stroke="{INK}" stroke-width="6"/>'
                       + (f'<foreignObject x="{int(W * 0.06)}" y="{int(H * 0.035)}" width="{int(W * 0.88)}" height="{int(H * 0.1)}">'
@@ -306,7 +315,7 @@ def location(loc: str, W: int, H: int, sid: str, time: str, sign: str, seed: int
             js += wj
             room += banner + wk
         elif loc == "classroom":
-            room += _board(int(W * 0.18), int(H * 0.1), int(W * 0.64), int(H * 0.36), sid, sign or " ")
+            room += _board(int(W * 0.18), int(H * 0.06), int(W * 0.64), int(H * 0.22), sid, sign or " ")
             furn = "".join(f'<rect x="{int(W * (0.08 + k * 0.3))}" y="{gy - 90}" width="{int(W * 0.2)}" height="18" fill="{WOOD}" stroke="{INK}" stroke-width="5"/>'
                            for k in range(3))
         bg = room + furn
@@ -316,17 +325,46 @@ def location(loc: str, W: int, H: int, sid: str, time: str, sign: str, seed: int
 
 
 # ------------------------------------------------------------------ speech bubble
-def _bubble(sid: str, x: float, y: float, text: str, W: int, flip: bool) -> str:
+def place_cast(xs: list[float], no_stand: list[tuple[float, float]], gap: float = 0.16) -> list[float]:
+    """Each character takes the free spot nearest to where the writer put it: never inside
+    furniture, never closer than `gap` to another character (fractions of the width)."""
+    free = [x / 100 for x in range(8, 93) if not any(a < x / 100 < b for a, b in no_stand)]
+    placed: dict[int, float] = {}
+    for k in sorted(range(len(xs)), key=lambda k: xs[k]):
+        want = min(0.92, max(0.08, xs[k]))
+        ok = [f for f in free if all(abs(f - p) >= gap for p in placed.values())] or free
+        placed[k] = min(ok, key=lambda f: abs(f - want))
+    return [placed[k] for k in range(len(xs))]
+
+
+# sign/board/banner position per place (x0, y0, x1, y1 as fractions) — bubbles avoid it
+SIGN_BOX = {"office": (0.36, 0.05, 0.70, 0.19), "home": (0.55, 0.08, 0.87, 0.28), "street": (0.3, 0.06, 0.7, 0.2),
+            "shop": (0.04, 0.03, 0.96, 0.14), "classroom": (0.18, 0.06, 0.82, 0.28),
+            "server_room": (0.06, 0.06, 0.40, 0.22), "network": (0.25, 0.05, 0.75, 0.18)}
+
+
+def _bubble(sid: str, x: float, y: float, text: str, W: int, flip: bool, sign_box=None, H: int = 0) -> str:
     bw = min(int(W * 0.46), max(220, 30 * len(text) // 2 + 80))
     bx = max(20, min(W - bw - 20, int(x - bw / 2)))
+    top = int(y) - 170
+    Hh = H or int(W * (800 / 1920 if W > 1500 else 1040 / 1080))
+    if top < 8 or (sign_box and bx < sign_box[2] * W and bx + bw > sign_box[0] * W and top < sign_box[3] * Hh):
+        # no room above the head (sign or frame edge): put the bubble beside the head instead
+        side = -1 if x > W / 2 else 1
+        bx = int(x + 70) if side > 0 else int(x - 70 - bw)
+        bx = max(20, min(W - bw - 20, bx))
+        top = max(int((sign_box[3] if sign_box else 0) * Hh) + 10, int(y) + 10)
+        return (f'<g id="{sid}" opacity="0"><foreignObject x="{bx}" y="{top}" width="{bw}" height="150">'
+                f'<div xmlns="http://www.w3.org/1999/xhtml" class="w-bwrap w-top"><div class="w-bubble">{e(text)}</div></div></foreignObject></g>')
     tail_x = max(bx + 30, min(bx + bw - 30, int(x)))
-    return (f'<g id="{sid}" opacity="0"><foreignObject x="{bx}" y="{int(y) - 170}" width="{bw}" height="150">'
+    return (f'<g id="{sid}" opacity="0"><foreignObject x="{bx}" y="{top}" width="{bw}" height="150">'
             f'<div xmlns="http://www.w3.org/1999/xhtml" class="w-bwrap"><div class="w-bubble">{e(text)}</div></div></foreignObject>'
             f'<path d="M{tail_x - 18} {int(y) - 26} L{tail_x} {int(y) + 6} L{tail_x + 18} {int(y) - 26} Z" fill="#fff" stroke="{INK}" stroke-width="4"/></g>')
 
 
-CAMERA = {"wide": (1.0, 1.0, 0, 0), "push": (1.0, 1.08, 0, 0), "pan": (1.04, 1.04, -40, 40),
-          "close": (1.22, 1.22, 0, 0)}
+# gentle moves anchored at the frame centre, so signs and bubbles at the top always stay in frame
+CAMERA = {"wide": (1.0, 1.0, 0, 0), "static": (1.0, 1.0, 0, 0), "push": (1.0, 1.05, 0, 0),
+          "pan": (1.03, 1.03, -30, 30), "close": (1.1, 1.1, 0, 0)}
 
 
 def visual(i: int, v: dict, t0: float, dur: float, long_: bool, seed: int) -> tuple[str, list[str]]:
@@ -335,13 +373,22 @@ def visual(i: int, v: dict, t0: float, dur: float, long_: bool, seed: int) -> tu
     loc = v.get("location", "office") if v.get("location") in LOCATIONS else "office"
     time = "night" if v.get("time") == "night" else "day"
     bg, fg, js = location(loc, W, H, sid, time, str(v.get("sign", "")), seed + i * 7, t0, dur)
+    sign_box = SIGN_BOX.get(loc, (0.3, 0.04, 0.72, 0.22)) if v.get("sign") else None
     gy = int(H * 0.86) if loc != "street" else int(H * 0.86) - 40      # street: stand on the pavement
+    dark = loc in DARK_PLACES or (loc == "street" and time == "night")
     chars, bubbles = [], []
     ch_h = int(H * (0.56 if long_ else 0.58))
     cast = v.get("cast") or []
+    xs = place_cast([float(c.get("x", 0.3 + 0.4 * k)) for k, c in enumerate(cast[:3])],
+                    [] if loc == "shop" and False else NO_STAND.get(loc, []))
+    if dark and cast:                           # a soft pool of light where the cast stands
+        bg += (f'<ellipse cx="{W // 2}" cy="{gy}" rx="{int(W * 0.48)}" ry="{int(H * 0.06)}" fill="#ffffff" opacity="0.10"/>'
+               f'<rect x="0" y="{int(gy - ch_h * 1.15)}" width="{W}" height="{int(ch_h * 1.15)}" fill="url(#{sid}-spot)"/>'
+               f'<defs><radialGradient id="{sid}-spot" cx="0.5" cy="0.8" r="0.7"><stop offset="0" stop-color="#7fa6ff" stop-opacity="0.22"/>'
+               f'<stop offset="1" stop-color="#7fa6ff" stop-opacity="0"/></radialGradient></defs>')
     for k, c in enumerate(cast[:3]):
         who = c.get("who", "arjun")
-        cx = int(float(c.get("x", 0.3 + 0.4 * k)) * W)
+        cx = int(xs[k] * W)
         csid = f"s{i}c{k}"
         flip = c.get("face") == "left"
         if who == "byte":
@@ -353,7 +400,7 @@ def visual(i: int, v: dict, t0: float, dur: float, long_: bool, seed: int) -> tu
         else:
             vb_h = int(ch_h * 640 / 454)
             vb_w = int(vb_h * 400 / 640)
-            fig = _character(csid, who)
+            fig = _character(csid, who, dark)
             inner = f'<svg x="{-vb_w // 2}" y="{gy - int(vb_h * (194 + 330) / 640)}" width="{vb_w}" height="{vb_h}"' + fig[len('<svg class="stick-svg"'):]
             head_y = gy - ch_h
             acts = sorted(c.get("actions") or [{"at": 0, "pose": "stand", "face": "neutral"}], key=lambda x: x.get("at", 0))
@@ -378,7 +425,7 @@ def visual(i: int, v: dict, t0: float, dur: float, long_: bool, seed: int) -> tu
                 held = prop == "phone"
                 gid, base = (f"{csid}-hprop", "translate(0,76)") if held else (f"{csid}-gprop", "translate(58,60)")
                 inner = inner.replace(f'<g id="{gid}" transform="{base} scale{"(1)" if held else "(1.5)"}"></g>',
-                                      f'<g id="{gid}" transform="{base} scale{"(1)" if held else "(1.5)"}">{stk.PROP_SVG[prop].format(ink=INK)}</g>')
+                                      f'<g id="{gid}" transform="{base} scale{"(1)" if held else "(1.5)"}">{stk.PROP_SVG[prop].format(ink=CHALK if dark else INK)}</g>')
         sx = -1 if flip else 1
         start_x = {"left": -300, "right": W + 300}.get(c.get("walk_from"), cx)
         chars.append(f'<g id="{csid}-pos" transform="translate({start_x},0)"><g transform="scale({sx},1)">{inner}</g></g>')
@@ -389,7 +436,7 @@ def visual(i: int, v: dict, t0: float, dur: float, long_: bool, seed: int) -> tu
             js.append(f'tl.from("#{csid}-pos",{{opacity:0,duration:0.3,ease:"power2.out"}},{t0:.3f});')
         if c.get("say"):
             bid = f"{csid}-say"
-            bubbles.append(_bubble(bid, cx, head_y - 10, str(c["say"]), W, flip))
+            bubbles.append(_bubble(bid, cx, head_y - 10, str(c["say"]), W, flip, sign_box, H))
             ta = t0 + max(0.0, min(0.9, float(c.get("say_at", 0.15)))) * dur
             te = t0 + max(0.1, min(1.0, float(c.get("say_end", 0.95)))) * dur
             js.append(f'tl.fromTo("#{bid}",{{opacity:0,attr:{{transform:"translate(0,20)"}}}},{{opacity:1,attr:{{transform:"translate(0,0)"}},'
@@ -400,8 +447,10 @@ def visual(i: int, v: dict, t0: float, dur: float, long_: bool, seed: int) -> tu
         s0 = s1 = float(v["zoom"])
         px0 = px1 = 0
     focus = int(float((cast[0].get("x", 0.5) if cast else 0.5)) * W)
+    cy = H * 0.5
+
     def cam(s, px):
-        return f"translate({focus * (1 - s) + px:.1f},{gy * (1 - s):.1f}) scale({s:.3f})"
+        return f"translate({focus * (1 - s) + px:.1f},{cy * (1 - s):.1f}) scale({s:.3f})"
     js.append(f'tl.fromTo("#{sid}-cam",{{attr:{{transform:"{cam(s0, px0)}"}}}},{{attr:{{transform:"{cam(s1, px1)}"}},'
               f'duration:{dur:.2f},ease:"power1.inOut"}},{t0:.3f});')
     svg = (f'<svg class="world-svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" preserveAspectRatio="xMidYMid slice">'
@@ -416,6 +465,7 @@ CSS = """
  display:flex;align-items:center;justify-content:center;height:100%}
 .w-banner{color:#fff;font-size:56px}
 .w-bwrap{height:100%;display:flex;align-items:flex-end;justify-content:center}
+.w-bwrap.w-top{align-items:flex-start}
 .w-bubble{background:#fff;border:4px solid #1d2433;border-radius:28px;padding:14px 22px;font-family:'Caveat','Noto Sans Tamil',cursive;
  font-weight:700;font-size:46px;line-height:1.05;color:#1d2433;text-align:center}
 """
