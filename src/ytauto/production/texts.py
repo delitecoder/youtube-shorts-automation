@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import copy
 
-TOP = ("hooks", "titles", "closing_question", "topic")
+TOP = ("hooks", "titles", "closing_question", "topic", "thumbnail_text")
 SCENE = ("narration", "on_screen_text", "chapter")
 # human sentences inside visuals; technical labels (diagram nodes, code, stat values) stay English
 VISUAL = {"title": ("headline", "kicker"), "bullets": ("items",), "stat": ("label",),

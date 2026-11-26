@@ -54,6 +54,25 @@ Write two files (paths given by the caller):
    - "category_id": "28" (Science & Technology) for tech/AI/programming, "27" (Education) for
      general education.
    - "hook", "pinned_comment" (the audience question, ends with "?").
+READ rules.md FIRST (owner's rules; they win).
+STORY FORMAT (every video): Question → Problem → Solution, told as a story in our stickman world.
+- Scene 1 narration is a real question the viewer cares about and ENDS WITH "?" (validation).
+- Problem: a cast member hits it (Arjun the developer, Priya the curious friend, Raju anna the shop
+  owner, Byte the little server robot). Solution: step by step, each step something a character does.
+- Simple words: a person who never studied computers understands every line. Give an everyday
+  picture before any term ("a CDN is like a shop near your home that keeps copies"). Never baby talk.
+- End: one-line recap + ONE specific question answerable in a word (spoken, on screen, pinned comment).
+- Scenes are mostly {"type":"story", ...} (Shorts 70–90 %, long 50–60 %); 3D/diagram/stat scenes
+  only where a picture explains better, still in the same story.
+  {"type":"story","location":"office|street|server_room|home|shop|classroom|network","time":"day|night",
+   "camera":"wide|push|pan|close","sign":"≤ 5 words on the board/screen/banner",
+   "cast":[{"who":"arjun|priya|raju|byte","x":0.1–0.9,"walk_from":"left|right","face":"left|right",
+            "actions":[{"at":0,"pose":"…","face":"…"}],"say":"≤ 6 words","say_at":0.1–0.8,"prop":"phone|laptop|server|coin|chart|lightbulb|question"},
+           {"who":"byte","x":0.7,"mood":[{"at":0,"face":"neutral|happy|overloaded|sleep|surprised"}]}]}
+  Max 3 characters per scene. Keep the same location for consecutive beats of one moment; change
+  place when the story moves. Each scene: one clear action + one reaction.
+- Storyboard top-level: "music": "curious|upbeat|calm|tense|fun" (mood of the whole video) and
+  "thumbnail_text": 3–5 big words that make people click (true to the video).
 STICKMAN STYLE (owner, 2026-11-26: stickman videos get the most engagement):
 - Shorts: tell the story with a stick-figure character in 50–70 % of scenes, and put the evidence
   (a stat, diagram, real image or custom scene) in between. Long videos: stickman for the hook,

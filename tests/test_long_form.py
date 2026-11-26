@@ -29,7 +29,7 @@ def _long_sb(n=36, words_each=30):
         v = {"title": {"headline": "x"}, "bullets": {"items": ["a"]}, "diagram": {"nodes": ["a", "b"]},
              "stat": {"value": "1", "label": "x"}, "custom": {"code": f"scene{i + 1}"},
              "comparison": {"left": "A: x", "right": "B: y"}}[k]
-        s = {"narration": ("Millions of requests hit one server " if i == 0 else "") + "word " * words_each,
+        s = {"narration": ("Millions of requests hit one server, what breaks first? " if i == 0 else "") + "word " * words_each,
              "on_screen_text": "Load balancers", "transition": "fade", "visual": {"type": k, **v}}
         if i % 8 == 0:
             s["chapter"] = "Intro" if i == 0 else f"Part {i // 8}"

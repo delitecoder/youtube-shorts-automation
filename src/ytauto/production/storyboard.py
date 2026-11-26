@@ -186,6 +186,9 @@ THREE_TEMPLATES = {"servers", "globe", "stack", "bars"}
 
 def slop_check(sb: dict) -> list[str]:
     out = []
+    first = (sb.get("scenes") or [{}])[0].get("narration", "").strip()
+    if first and "?" not in first:
+        out.append("scene 1 must ask the viewer a question (rules.md: Question → Problem → Solution)")
     for i, sc in enumerate(sb.get("scenes", []), 1):
         v = sc.get("visual", {})
         if v.get("type") == "three" and v.get("template") not in THREE_TEMPLATES:

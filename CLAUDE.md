@@ -79,6 +79,8 @@ belong to a different Python than `python` in fresh containers). Work files go i
    (Noto Sans Tamil for Tamil videos) and `python -m ytauto sync-library`
    (SFX/music libraries; procedural sound is used when empty; also caches the DeliteCoder logo
    badge from Drive `References/Images/brand_logo.png`, shown in every video).
+   `python -m ytauto import-audio` (licensed SFX + music from Stickman Video Director's library,
+   CC0/CC BY; cached in the container).
    `python -m ytauto analyze-reference` (only NEW reference videos from Drive References/Style are
    analysed; if `new` > 0, look at each `contact_sheet` and record 1–3 concrete learnings with
    `python -m ytauto style-note --add "…"`; discover shows all notes as `insights.style_notes`).
@@ -131,6 +133,12 @@ belong to a different Python than `python` in fresh containers). Work files go i
    and set those scenes' visual to `{"type": "custom", "code": "sceneN"}` (add `"full_frame": true`
    for big diagrams). Send each brief to the **scene-coder** (Sonnet) agent with the video id, the
    scene name and its id prefix `s<index0>-` (scene 1 → `s0-`). Style reference: docs/STYLE_REFERENCE.md.
+7d. PER-SCENE LOOP (rules.md §4, after the voice exists): `python -m ytauto scene-frames --video-id …
+   --storyboard storyboard.json` (3 stills per scene, no full render) → **scene-reviewer** (Sonnet)
+   for each scene strip with that scene's JSON (run several in parallel; batch 4–6 scenes per
+   agent for long videos to save tokens) → apply every fix to storyboard.json / scene code yourself
+   → re-run `scene-frames --scene N,M` only for changed scenes → at most 2 rounds per scene.
+   Only then the full render (step 8). The thumbnail is made automatically by `submit`.
 7c. Voice first, separately: `python -m ytauto voice --video-id … --storyboard storyboard.json`
    (Google Chirp 3 HD within the free tier: ≤ 1,000 chars per Short, ≤ 8,000 per long video,
    monthly cap 600k ≤ 90 % of the 1M free characters; clips are cached by exact text so re-renders
