@@ -33,7 +33,8 @@ VISUAL_TYPES = {
     "image": {"asset"},          # file name of an image fetched with `ytauto fetch-asset`
     "custom": {"code"},          # scene-coder (camera man) HTML+GSAP in scenes/<code>.html/.js
     "stickman": {"actions"},     # code-drawn acting stick figure (production/stickman.py)
-    "three": {"template"},       # three.js 3D: servers | globe | stack | bars (renderer/hyperframes/three_scenes.js)
+    "three": {"template"},
+    "story": {"location"},       # stickman world scene: cast + location + camera (production/world.py)       # three.js 3D: servers | globe | stack | bars (renderer/hyperframes/three_scenes.js)
 }
 OUTRO_TYPE = "subscribe"         # added automatically by with_outro(); not written by the storywriter
 TRANSITIONS = {"fade", "slide", "cut"}
@@ -138,19 +139,42 @@ REACH_HASHTAGS = {"short": ["#Shorts", "#viral", "#trending", "#shortsfeed", "#y
 REACH_TAGS = ["shorts", "viral", "trending"]
 
 
-def add_reach_tags(m: dict, long: bool, lang: str = "en") -> dict:
-    """Append the popular hashtags/tags the owner asked for, without duplicates or overflow."""
+# Generic reach hashtags/tags that may be reused from the owner's own history (brand- or
+# topic-specific ones from old videos, e.g. #delitecart or #diwali, are never copied onto new topics).
+GENERIC_REACH = {"#shorts", "#viral", "#trending", "#viralvideo", "#trendingshorts", "#viralshorts",
+                 "#shortsfeed", "#ytshorts", "#aishorts", "#aivideo", "#ai", "#tech", "#technology",
+                 "#tamil", "#tamiltech", "#youtube", "#explore"}
+GENERIC_TAGS = {"shorts", "viral", "trending", "viral video", "trending shorts", "ai", "tech", "tamil",
+                "delite coder", "delitecoder", "technology", "youtube shorts"}
+
+
+def add_reach_tags(m: dict, long: bool, lang: str = "en", channel: dict | None = None) -> dict:
+    """Append the reach hashtags/tags: first the ones that brought views on the owner's previous
+    videos (`channel` = audit.channel_reach, ranked by views), then the defaults; no duplicates,
+    never #shorts on long videos, #tamil only on Tamil videos, at most 10 hashtags."""
     m = dict(m)
     d = m.get("description", "").rstrip()
     have = {h.lower() for h in HASHTAG_RE.findall(d)}
-    extra = [h for h in REACH_HASHTAGS["long" if long else "short"] + (["#tamil"] if lang == "ta" else [])
-             if h.lower() not in have]
+    ranked = [h for h in (channel or {}).get("hashtags", []) if h.lower() in GENERIC_REACH]
+    pool = ranked + REACH_HASHTAGS["long" if long else "short"] + (["#tamil"] if lang == "ta" else [])
+    if long:
+        pool = [h for h in pool if "short" not in h.lower()]
+    if lang != "ta":
+        pool = [h for h in pool if "tamil" not in h.lower()]
+    extra = []
+    for h in pool:
+        if h.lower() not in have and h.lower() not in [x.lower() for x in extra]:
+            extra.append(h)
+    if not long and "#shorts" not in have:
+        extra = ["#Shorts"] + [h for h in extra if h.lower() != "#shorts"]
     room = max(0, 10 - len(have))
     if extra[:room]:
         d += (" " if d.splitlines() and d.splitlines()[-1].lstrip().startswith("#") else "\n") + " ".join(extra[:room])
     m["description"] = d
     tags = list(m.get("tags", []))
-    for t in REACH_TAGS:
+    hist = [t for t in (channel or {}).get("tags", []) if t in GENERIC_TAGS
+            and not (lang != "ta" and "tamil" in t) and not (long and "short" in t)]
+    for t in REACH_TAGS + hist:
         if t not in [x.lower() for x in tags] and len(tags) < 15 and sum(len(x) + 1 for x in tags) + len(t) < 480:
             tags.append(t)
     m["tags"] = tags

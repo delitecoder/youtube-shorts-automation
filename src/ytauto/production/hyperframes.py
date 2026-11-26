@@ -354,6 +354,11 @@ THREE_CSS = """
 """
 
 
+def _world_css() -> str:
+    from . import world as wld
+    return wld.CSS
+
+
 def build(storyboard: dict, timings: list[dict], caps: list[dict], workdir: Path,
           series_label: str = "TECH IN 60s", logo: str | None = None) -> Path:
     """Write <workdir>/hf/index.html (+ gsap + assets) and return the project dir.
@@ -418,7 +423,11 @@ def build(storyboard: dict, timings: list[dict], caps: list[dict], workdir: Path
         accent = ACCENTS[i % 4]
         v = s["visual"]
         full_frame = False
-        if v.get("type") == "three":                  # three.js 3D template (renderer/hyperframes/three_scenes.js)
+        if v.get("type") == "story":                  # animated stickman world (cast + location + camera)
+            from . import world as wld
+            vis_html, vis_js = wld.visual(i, v, t0, dur, long_, sum(storyboard.get("video_id", "x").encode()))
+            full_frame = True
+        elif v.get("type") == "three":                  # three.js 3D template (renderer/hyperframes/three_scenes.js)
             spec = {k: v[k] for k in ("template", "nodes", "points", "layers", "bars", "unit", "prefix") if k in v}
             spec |= {"t0": round(t0, 3), "dur": round(dur, 3), "accents": ACCENTS}
             full_frame = bool(v.get("full_frame"))
@@ -477,7 +486,7 @@ def build(storyboard: dict, timings: list[dict], caps: list[dict], workdir: Path
     css = CSS.replace("background:radial-gradient(1200px 900px at 20% 10%,#1d2a5c 0%,transparent 60%),"
                       "radial-gradient(900px 900px at 90% 80%,#3a1747 0%,transparent 60%),linear-gradient(#0a0e20,#151030);",
                       f"background:{pal['bg']};") + (CSS_LONG if long_ else "") + stk.CSS \
-        + (stk.CSS_LONG if long_ else "") + (stk.PAPER_CSS if pal.get("light") else "") + THREE_CSS
+        + (stk.CSS_LONG if long_ else "") + (stk.PAPER_CSS if pal.get("light") else "") + THREE_CSS + _world_css()
     doc = (f'<!doctype html><html><head><meta charset="utf-8"><style>{css}</style></head><body>'
            f'<div id="stage" data-composition-id="main" data-start="0" data-duration="{duration:.3f}" '
            f'data-width="{w_px}" data-height="{h_px}" data-fps="{FPS}">{"".join(body)}</div>'

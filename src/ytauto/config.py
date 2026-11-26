@@ -196,6 +196,7 @@ class Settings:
     approval_ttl_hours: int = 24
     publish_window_hours: int = 24           # approved item must be uploaded within this window
     tts_monthly_char_budget: int = 850_000   # Chirp 3 HD free tier = 1M chars/month (spaces count)
+    synthetic_media: bool = True             # YouTube "altered or synthetic content" disclosure (owner: ON)
     video_languages: tuple = ("en", "ta")    # each video is also made in Tamil (owner, 2026-11-25)
     tts_voice_ta: str = "ta-IN-Chirp3-HD-Charon"     # same narrator as English
     tts_fallback_voice_ta: str = "ta-IN-Wavenet-B"   # separate free tier (4M chars/month)
@@ -253,6 +254,7 @@ class Settings:
             approval_ttl_hours=int(e.get("APPROVAL_TTL_HOURS", "24")),
             # never above 90 % of Google's free tier, so voice can never become a paid cost
             tts_monthly_char_budget=min(int(e.get("TTS_MONTHLY_CHAR_BUDGET", "850000")), TTS_FREE_TIER_CAP),
+            synthetic_media=e.get("SYNTHETIC_MEDIA", "true").lower() != "false",
             video_languages=tuple(x.strip() for x in e.get("VIDEO_LANGUAGES", "en,ta").split(",")
                                   if x.strip() in LANGUAGES) or ("en",),
             tts_voice_ta=e.get("TTS_VOICE_TA", "ta-IN-Chirp3-HD-Charon"),

@@ -110,3 +110,15 @@ def test_reach_hashtags_added_once():
     assert sbm.add_reach_tags(out, long=False)["description"] == out["description"]
     lng = sbm.add_reach_tags({"description": "x\n#SystemDesign", "tags": []}, long=True, lang="ta")
     assert "#shorts" not in lng["description"].lower() and "#tamil" in lng["description"]
+
+
+def test_reach_uses_channel_history_but_never_brand_or_wrong_language_tags():
+    ch = {"hashtags": ["#shorts", "#delitecart", "#viral", "#trending", "#ai", "#tamil", "#diwali", "#trendingshorts"],
+          "tags": ["shorts", "sql delete vs drop", "viral", "trending", "tamil"]}
+    en = sbm.add_reach_tags({"description": "Hook\n#CDN #Netflix", "tags": ["cdn"]}, long=False, channel=ch)
+    line = en["description"].splitlines()[-1].lower()
+    assert "#viral" in line and "#trendingshorts" in line and "#ai" in line
+    assert "#delitecart" not in line and "#diwali" not in line and "#tamil" not in line
+    assert "sql delete vs drop" not in en["tags"]
+    ta = sbm.add_reach_tags({"description": "x\n#CDN", "tags": []}, long=True, lang="ta", channel=ch)
+    assert "#tamil" in ta["description"] and "short" not in ta["description"].lower()

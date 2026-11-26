@@ -152,6 +152,10 @@ def cmd_discover(ctx: Ctx, a) -> int:
     if loc:
         out(loc)
         return 0
+    q = _queued_future(ctx, recs)
+    if q and not a.force:
+        out({"action": "none", "reason": f"{q} is already queued for an upcoming slot; making another would push every later video back a day"})
+        return 0
     waiting_today = [r.video_id for r in recs if r.state == State.AWAITING_APPROVAL and r.video_id.startswith(f"VIDEO-{today}-")]
     if waiting_today:
         out({"action": "none", "reason": f"today's video is waiting for approval: {waiting_today}"})
@@ -186,6 +190,21 @@ def cmd_discover(ctx: Ctx, a) -> int:
 DONE_ENGLISH = {State.AWAITING_APPROVAL, State.APPROVED, State.UPLOADING, State.SCHEDULED, State.PUBLISHED}
 
 
+def _queued_future(ctx: Ctx, recs: list) -> str | None:
+    """An English item made on an EARLIER day that publishes today or later (a backlog): making
+    today's item too would push every later video back a day."""
+    from zoneinfo import ZoneInfo
+    today = _today_local(ctx).strftime("%Y%m%d")
+    for r in recs:
+        if (language_of(r.video_id) != "en" or r.video_id[6:14] >= today or not r.proposed_publish_at
+                or r.state not in (State.AWAITING_APPROVAL, State.APPROVED, State.UPLOADING, State.SCHEDULED)):
+            continue
+        slot_day = parse_iso(r.proposed_publish_at).astimezone(ZoneInfo(ctx.s.timezone)).strftime("%Y%m%d")
+        if slot_day >= today:
+            return r.video_id
+    return None
+
+
 def _needs_localize(ctx: Ctx, recs: list, today: str) -> dict | None:
     """Today's submitted English video still needs its Tamil version."""
     if "ta" not in ctx.s.video_languages:
@@ -212,6 +231,10 @@ def _discover_long(ctx: Ctx, a) -> int:
     loc = _needs_localize(ctx, recs, today)
     if loc:
         out(dict(loc, format="long"))
+        return 0
+    q = _queued_future(ctx, recs)
+    if q and not a.force:
+        out({"action": "none", "format": "long", "reason": f"{q} is already queued for an upcoming slot"})
         return 0
     if any(r.video_id.startswith(f"VIDEO-{today}-") for r in recs) and not a.force:
         out({"action": "none", "format": "long", "reason": "already produced today's long video"})
@@ -552,6 +575,14 @@ def cmd_fetch_asset(ctx: Ctx, a) -> int:
     return 0
 
 
+def cmd_import_audio(ctx: Ctx, a) -> int:
+    """Licensed SFX + music (CC0 / CC BY) from Stickman Video Director's audio library into
+    runtime/library (merged into the manifests; already-downloaded files are kept)."""
+    from ..production import audio_library
+    out({"ok": True, **audio_library.fetch(LIBRARY, log=lambda m: print(m, file=sys.stderr))})
+    return 0
+
+
 def cmd_sync_library(ctx: Ctx, a) -> int:
     """Copy SFX/Music library folders (with manifest.json) from Drive to runtime/library/."""
     got = {}
@@ -632,7 +663,8 @@ def _credits_block(video_id: str) -> str:
                 lines.append(f"Image: © {e.get('creator') or 'creator'} — {e['credit']} (used with permission)")
             elif e.get("type") == "image" and e.get("needs_attribution"):
                 lines.append(f"Image: {e['credit']}")
-            elif e.get("type") in ("sfx", "music") and e.get("source") and "procedural" not in e["source"]:
+            elif (e.get("type") in ("sfx", "music") and e.get("source") and "procedural" not in e["source"]
+                  and e.get("attribution_required", True) and not str(e.get("license", "")).startswith("CC0")):
                 lines.append(f"{e['type'].upper()}: {e['source']} ({e['license']})")
     return ("\n\nCredits:\n" + "\n".join(dict.fromkeys(lines))) if lines else ""
 
@@ -651,7 +683,11 @@ def cmd_submit(ctx: Ctx, a) -> int:
     credits = _credits_block(rec.video_id)
     if credits and "Credits:" not in meta["description"]:
         meta["description"] = meta["description"].rstrip() + credits
-    meta = sbmod.add_reach_tags(meta, long_, language_of(rec.video_id))
+    try:
+        reach = json.loads(ctx.store.get_config("channel_reach", "") or "{}")
+    except ValueError:
+        reach = {}
+    meta = sbmod.add_reach_tags(meta, long_, language_of(rec.video_id), channel=reach)
     errs = sbmod.validate_metadata(meta, long=long_)
     if review.get("verdict") != "pass":
         errs.append("quality review verdict is not 'pass'")
@@ -678,6 +714,7 @@ def cmd_submit(ctx: Ctx, a) -> int:
                                  weekday_slots=slots))
     qr = json.loads(rec.quality_report or "{}") | {"review": review}
     qr["youtube"] = {"category_id": str(meta.get("category_id", "28")), "made_for_kids": False,
+                     "synthetic": ctx.s.synthetic_media,
                      "language": lang, "embeddable": True, "public_stats": True}
     cp = WORK / rec.video_id / "image_credits.json"
     if cp.exists():
@@ -710,7 +747,24 @@ def cmd_submit(ctx: Ctx, a) -> int:
         dur = float(rec.duration_s or 10)
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{min(3.0, dur / 3):.2f}", "-i", str(src),
                         "-frames:v", "1", "-vf", "scale=540:-2", "-q:v", "4", str(poster)], check=False)
-    if poster.exists():
+    # Designed thumbnail (story world + character + big words); also the approval-email poster.
+    thumb = None
+    if rec.source_type == "GENERATED":
+        try:
+            from ..production import thumbnail as thmod
+            sbp = WORK / rec.video_id / "storyboard.json"
+            if sbp.exists():
+                thumb = thmod.make(json.loads(sbp.read_text()), WORK / rec.video_id, long_)
+        except Exception as ex:  # noqa: BLE001 - a thumbnail must never block a submit
+            print(f"thumbnail skipped: {str(ex)[:200]}", file=sys.stderr)
+    if thumb:
+        up_t = ctx.external_write(f"upload thumbnail for {rec.video_id}",
+                                  lambda: ctx.drive.upload(thumb, "awaiting_approval", "image/jpeg"))
+        if up_t:
+            qr["thumbnail_file_id"] = up_t["id"]
+            qr["poster_file_id"] = up_t["id"]
+            fields["quality_report"] = json.dumps(qr)[:45000]
+    if poster.exists() and not qr.get("poster_file_id"):
         up_p = ctx.external_write(f"upload poster for {rec.video_id}",
                                   lambda: ctx.drive.upload(poster, "awaiting_approval", "image/jpeg"))
         if up_p:
@@ -936,12 +990,66 @@ def cmd_frames(ctx: Ctx, a) -> int:
     return 0
 
 
+def cmd_scene_frames(ctx: Ctx, a) -> int:
+    """Per-scene review BEFORE the full render: build the animation from the cached voice and
+    snapshot each scene (3 stills) with HyperFrames, one strip image per scene for the
+    scene-reviewer. Costs no voice characters (cache) and no full render."""
+    from ..integrations.tts import for_language, synthesize_all
+    from ..production import audio, brand as brandmod, captions, hyperframes as hfr
+    from ..production import reference as ref
+    sb = sbmod.normalize(load_json(a.storyboard))
+    rec = ctx.store.get(a.video_id)
+    wd = WORK / rec.video_id
+    long_, lang = sbmod.is_long(sb), sb.get("language", "en")
+    full = sbmod.with_outro(sb, ctx.s.outro_for(long_, lang)) if ctx.s.outro_enabled else sb
+    clips, _, _ = synthesize_all([x["narration"] for x in full["scenes"]], wd, for_language(ctx.s, lang), ctx.store,
+                                 log=lambda m: print(m, file=sys.stderr))
+    timings = audio.build_timeline(clips, wd / "narration_raw.wav")
+    caps = captions.build(full["scenes"], timings)
+    logo = f"assets/{brandmod.LOGO_NAME}" if brandmod.logo_path() else None
+    if logo:
+        (wd / "assets").mkdir(exist_ok=True)
+        shutil.copy(brandmod.logo_path(), wd / "assets" / brandmod.LOGO_NAME)
+    proj = hfr.build(full, timings, caps, wd, (sb.get("series_label") or "TECH").upper(), logo=logo)
+    hf = str(hfr.RENDERER_DIR / "node_modules" / ".bin" / "hyperframes")
+    want = [int(x) for x in str(a.scene).split(",")] if a.scene != "all" else range(1, len(full["scenes"]) + 1)
+    sheets = []
+    for n in want:
+        tm = timings[n - 1]
+        d = tm["end"] - tm["start"]
+        at = ",".join(f"{tm['start'] + f * d:.2f}" for f in (0.2, 0.55, 0.9))
+        snap = wd / "scene_frames" / f"scene{n}"
+        if snap.exists():
+            shutil.rmtree(snap)
+        subprocess.run([hf, "snapshot", str(proj), "--at", at, "--no-end", "--output", str(snap)],
+                       capture_output=True, text=True, timeout=600)
+        pngs = sorted(snap.glob("*.png"))
+        if not pngs:
+            sheets.append({"scene": n, "error": "snapshot failed"})
+            continue
+        strip = wd / "scene_frames" / f"scene{n}.png"
+        subprocess.run(["ffmpeg", "-v", "error", "-y", *sum([["-i", str(p)] for p in pngs], []), "-filter_complex",
+                        "".join(f"[{k}:v]scale=-2:640[v{k}];" for k in range(len(pngs)))
+                        + "".join(f"[v{k}]" for k in range(len(pngs))) + f"hstack=inputs={len(pngs)}",
+                        str(strip)], check=False)
+        sheets.append({"scene": n, "strip": str(strip), "narration": full["scenes"][n - 1]["narration"][:160],
+                       "times": at})
+    out({"ok": True, "scenes": sheets, "next": "scene-reviewer per strip → fix storyboard/scene code → re-run for that scene"})
+    return 0
+
+
 def _run_audit(ctx: Ctx) -> dict:
     from ..analytics import audit as au
     ours = {r.youtube_video_id for r in ctx.store.all() if r.youtube_video_id}
     rep = au.collect(ctx.yt_analytics, ctx.youtube, _today_local(ctx), ours)
     res = au.analyse(rep)
     ctx.store.set_config("last_audit", json.dumps(res)[:45000])
+    try:                                   # tags/hashtags that brought views on the owner's videos
+        reach = au.channel_reach(ctx.youtube)
+        if reach:
+            ctx.store.set_config("channel_reach", json.dumps(reach)[:20000])
+    except Exception:  # noqa: BLE001 - optional; submit falls back to the default reach set
+        pass
     return res
 
 
@@ -1130,6 +1238,7 @@ def main(argv=None) -> int:
     p = sub.add_parser("fetch-asset"); p.add_argument("--video-id", required=True); p.add_argument("--file-id", required=True)
     p.add_argument("--name", required=True)
     sub.add_parser("sync-library")
+    sub.add_parser("import-audio")
     p = sub.add_parser("peak-time"); p.add_argument("--refresh", action="store_true")
     p = sub.add_parser("audit"); p.add_argument("--email", action="store_true")
     sub.add_parser("apps-script-check")
@@ -1137,6 +1246,8 @@ def main(argv=None) -> int:
     p.add_argument("--all", action="store_true", help="re-analyse references already analysed")
     p = sub.add_parser("style-note"); p.add_argument("--add")
     p = sub.add_parser("frames"); p.add_argument("--video-id", required=True)
+    p = sub.add_parser("scene-frames"); p.add_argument("--video-id", required=True); p.add_argument("--storyboard", required=True)
+    p.add_argument("--scene", default="all", help="1-based scene numbers, comma separated, or all")
     p = sub.add_parser("budget")
     p.add_argument("--five-hour", type=float, help="five_hour utilization 0-1")
     p.add_argument("--five-reset", type=int, help="five_hour resetsAt (epoch s)")

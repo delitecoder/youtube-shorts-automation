@@ -2,6 +2,15 @@
 
 The owner updates the script; Claude never pushes it. Newest first. Each entry = one SCRIPT_VERSION.
 
+## 2026.11.26-1
+- **Thumbnails:** each video comes with a designed thumbnail (story scene + big words). After the
+  upload the script sets it on YouTube (retried each run for up to 48 h, because YouTube accepts
+  Shorts thumbnails only after processing). Custom thumbnails need a verified channel
+  (youtube.com/verify, one-time phone check).
+- **AI disclosure:** uploads now set YouTube's "altered or synthetic content" flag when the video
+  says so (owner choice: ON for all videos).
+- No new service or permission.
+
 ## 2026.11.25-3
 - **Tamil versions**: every video is also made in Tamil (ids: Short 051–099, long 151–199). The
   approval email says "Tamil Short" / "Tamil long video"; the upload sets the video and audio

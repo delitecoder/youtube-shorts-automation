@@ -23,7 +23,7 @@
 
 // Bump on every change and add an entry to apps_script/CHANGELOG.md: the daily run compares this
 // with the deployed version and emails the approver when an update is needed.
-var SCRIPT_VERSION = '2026.11.25-3';
+var SCRIPT_VERSION = '2026.11.26-1';
 var TTL_HOURS = 24;
 var SLOT_MARGIN_MIN = 15;            // approvals must arrive this long before the publish slot
 var MAX_UPLOAD_BYTES = 45 * 1024 * 1024;   // Apps Script blob limit: bigger files use the chunked upload
@@ -106,6 +106,7 @@ function run() {
     checkReplies_(ss);
     expire_(ss);
     if (props_().getProperty('UPLOADER') === 'cloud_run') callPublisher_(ss); else uploadApproved_(ss);
+    try { setThumbnails_(ss); } catch (e) { logError_(ss, '', 'uploader', 'thumbnails: ' + e, 'WARNING'); }
     noVideoCheck_(ss);
     cleanupArchive_(ss);
     sendNotifications_(ss);
@@ -257,6 +258,7 @@ function sendRequests_(ss) {
       tags: r.tags, publish_at: r.proposed_publish_at, thread_id: msg.getThread().getId(),
       category_id: String((qr.youtube || {}).category_id || '28'),
       language: String((qr.youtube || {}).language || 'en'),
+      synthetic: (qr.youtube || {}).synthetic === true, thumbnail_file_id: qr.thumbnail_file_id || '',
       request_message_id: msg.getId(), requested_at: sentAt }));
     var ok = casUpdate_(ss, r.video_id, 'AWAITING_APPROVAL', r.version, {
       approval_thread_id: msg.getThread().getId(), approval_request_message_id: msg.getId(),
@@ -527,7 +529,7 @@ function uploadApproved_(ss) {
       var tags = []; try { tags = JSON.parse(sn.tags || '[]'); } catch (e) {}
       var status = { privacyStatus: 'private', selfDeclaredMadeForKids: false, embeddable: true,
                      publicStatsViewable: true, license: 'youtube' };
-      if (props_().getProperty('SYNTHETIC_MEDIA') === 'true') status.containsSyntheticMedia = true;
+      if (sn.synthetic || props_().getProperty('SYNTHETIC_MEDIA') === 'true') status.containsSyntheticMedia = true;
       if (publishAt) status.publishAt = publishAt;
       var resource = { snippet: { title: sn.title, description: sn.description, tags: tags,
         categoryId: sn.category_id || '28', defaultLanguage: sn.language || 'en', defaultAudioLanguage: sn.language || 'en' }, status: status,
@@ -558,6 +560,9 @@ function uploadApproved_(ss) {
 /** Success bookkeeping shared by the normal and the chunked upload. */
 function uploaded_(ss, vid, sn, cur, ytId, publishAt) {
   props_().setProperty('up:' + vid, JSON.stringify({ youtube_id: ytId, at: nowIso_() }));
+  if (sn.thumbnail_file_id) {              // set after processing (Shorts need it); retried each run
+    props_().setProperty('thumbq:' + vid, JSON.stringify({ yt: ytId, file: sn.thumbnail_file_id, since: Date.now() }));
+  }
   casUpdate_(ss, vid, 'UPLOADING', cur.version, { state: 'SCHEDULED', youtube_video_id: ytId,
                                                  proposed_publish_at: publishAt || '' });
   append_(ss, 'PublishedVideos', { recorded_at: nowIso_(), video_id: vid, youtube_video_id: ytId, privacy: 'private',
@@ -621,6 +626,25 @@ function continueChunked_(ss, r) {
     casUpdate_(ss, vid, 'UPLOADING', row.version, { state: 'NEEDS_MANUAL_REVIEW', notes: String(e).slice(0, 400) });
     logError_(ss, vid, 'uploader', 'Upload stopped (needs a manual look; it will not retry automatically): ' + e);
   }
+}
+
+/** Designed thumbnails: YouTube accepts them once processing is done, so try each run for 48 h. */
+function setThumbnails_(ss) {
+  var all = props_().getProperties();
+  Object.keys(all).filter(function (k) { return k.indexOf('thumbq:') === 0; }).forEach(function (k) {
+    var vid = k.slice(7), q = JSON.parse(all[k]);
+    try {
+      YouTube.Thumbnails.set(q.yt, DriveApp.getFileById(q.file).getBlob());
+      props_().deleteProperty(k);
+      logError_(ss, vid, 'uploader', 'Thumbnail set ✓ https://youtu.be/' + q.yt, 'INFO');
+    } catch (e) {
+      if (Date.now() - q.since > 48 * 3600e3) {
+        props_().deleteProperty(k);
+        logError_(ss, vid, 'uploader', 'Could not set the thumbnail (custom thumbnails need a verified channel: ' +
+          'youtube.com/verify): ' + e, 'WARNING');
+      }
+    }
+  });
 }
 
 function logOnce_(ss, vid, key, msg) {

@@ -13,7 +13,7 @@ TOP = ("hooks", "titles", "closing_question", "topic")
 SCENE = ("narration", "on_screen_text", "chapter")
 # human sentences inside visuals; technical labels (diagram nodes, code, stat values) stay English
 VISUAL = {"title": ("headline", "kicker"), "bullets": ("items",), "stat": ("label",),
-          "question": ("question",), "image": ("caption",), "stickman": ("text",), "timeline": ("events.*.text",),
+          "question": ("question",), "image": ("caption",), "stickman": ("text",), "story": ("sign", "cast.*.say"), "timeline": ("events.*.text",),
           "comparison": ("left.title", "left.items", "right.title", "right.items")}
 
 

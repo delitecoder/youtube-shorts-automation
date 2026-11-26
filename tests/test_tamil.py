@@ -110,3 +110,20 @@ def test_localize_from_texts(tmp_path):
     (tmp_path / "ta.json").write_text(json.dumps([dict(x, ta="த " + x["text"]) for x in items], ensure_ascii=False))
     r = run(rt, "localize", "--video-id", vid, "--storyboard", str(tmp_path / "en.json"), "--texts", str(tmp_path / "ta.json"))
     assert r["ok"] and r["video_id"].endswith("-051")
+
+
+def test_backlog_guard_blocks_new_item_when_earlier_video_holds_a_future_slot():
+    from ytauto.orchestration import cli
+    from datetime import date
+    ctx = SimpleNamespace(s=Settings.from_env({}))
+    old = SimpleNamespace(video_id="VIDEO-20261126-101", state=State.AWAITING_APPROVAL,
+                          proposed_publish_at="2026-11-27T12:00:00Z")
+    done = SimpleNamespace(video_id="VIDEO-20261126-001", state=State.SCHEDULED,
+                           proposed_publish_at="2026-11-26T14:00:00Z")
+    orig = cli._today_local
+    cli._today_local = lambda c: date(2026, 11, 27)
+    try:
+        assert cli._queued_future(ctx, [old, done]) == "VIDEO-20261126-101"
+        assert cli._queued_future(ctx, [done]) is None
+    finally:
+        cli._today_local = orig

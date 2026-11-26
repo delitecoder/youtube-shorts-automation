@@ -1,8 +1,12 @@
 # YouTube Shorts automation — operating rules for Claude Code
 
+**Read `rules.md` first, every session (interactive and scheduled). It holds the owner's rules and
+requirements and wins over everything below except the safety "Hard rules". NEVER edit rules.md**
+(only the owner does; `tests/test_rules_file.py` guards it).
 Read `docs/IMPLEMENTATION_STATUS.md` first when resuming development work.
 
 ## Hard rules (never break)
+- Never modify `rules.md`.
 - **Nothing is uploaded or published without an explicit email approval.** This session has no
   YouTube upload permission by design; only the Cloud Run publisher does, after re-validating the
   approval. Never try to work around this.
@@ -36,8 +40,9 @@ How to read the real numbers (costs almost nothing):
 3. `python -m ytauto budget --five-hour U5 --five-reset R5 --seven-day U7 --seven-reset R7
    [--five-status S5 --seven-status S7] --record start` and follow `decision`:
    - `go_full`: normal workflow.
-   - `go_lean`: lean plan — one research pass, no storywriter revision loop (one review only;
-     if it fails, stop and checkpoint), `VISION_PROVIDERS=clip,metadata` (or metadata only),
+   - `go_lean`: lean plan — one research pass, ONE storywriter revision if the review fails
+     (fix minor issues yourself instead of a revision; stop and checkpoint only if the revised
+     version still fails), `VISION_PROVIDERS=clip,metadata` (or metadata only),
      skip analytics snapshot and Reddit drafts, keep subagent prompts short.
    - `wait`: arm `send_later` for `resume_after_minutes`, checkpoint, stop (start after the reset).
    - `weekly_stop`: stop now. The command already queued an alert email ("weekly Claude limit

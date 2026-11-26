@@ -84,6 +84,35 @@ def collect(yta, yt, today: date, pipeline_ids: set[str]) -> dict:
     return rep
 
 
+def channel_reach(yt, limit: int = 200) -> dict:
+    """Hashtags and tags of the channel's own uploads, ranked by the views of the videos using them
+    (Data API: ~1 quota unit per 50 videos)."""
+    import collections
+    import re
+    svc = yt.svc
+    ch = svc.channels().list(part="contentDetails", mine=True).execute().get("items", [])
+    if not ch:
+        return {}
+    up = ch[0]["contentDetails"]["relatedPlaylists"]["uploads"]
+    ids, tok = [], None
+    while len(ids) < limit:
+        r = svc.playlistItems().list(part="contentDetails", playlistId=up, maxResults=50, pageToken=tok).execute()
+        ids += [i["contentDetails"]["videoId"] for i in r.get("items", [])]
+        tok = r.get("nextPageToken")
+        if not tok:
+            break
+    hv, tv = collections.Counter(), collections.Counter()
+    for i in range(0, len(ids), 50):
+        for v in svc.videos().list(part="snippet,statistics", id=",".join(ids[i:i + 50])).execute().get("items", []):
+            views = int(v.get("statistics", {}).get("viewCount", 0))
+            sn = v["snippet"]
+            for h in set(re.findall(r"#\w+", sn.get("description", "") + " " + sn.get("title", ""))):
+                hv[h.lower()] += views
+            for t in set(x.lower() for x in sn.get("tags", [])):
+                tv[t] += views
+    return {"hashtags": [h for h, _ in hv.most_common(40)], "tags": [t for t, _ in tv.most_common(60)]}
+
+
 def _secs(iso: str) -> int:
     import re
     m = re.match(r"P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", iso or "")

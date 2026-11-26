@@ -167,6 +167,8 @@ class Asset:
     category: str
     source: str
     license: str
+    mood: str = ""
+    attribution_required: bool = True
 
 
 @dataclass
@@ -187,7 +189,8 @@ class Library:
             elif not p.exists():
                 lib.rejected.append(f"{e.get('file')}: file missing")
             else:
-                lib.assets.append(Asset(p, e.get("category", ""), e["source"], e["license"]))
+                lib.assets.append(Asset(p, e.get("category", ""), e["source"], e["license"], e.get("mood", ""),
+                                        bool(e.get("attribution_required", True))))
         return lib
 
     def pick(self, category: str, rnd: random.Random) -> Asset | None:
@@ -196,10 +199,42 @@ class Library:
 
 
 # ------------------------------------------------------------------ cue planning + mix
+STORY_POSE_CUES = {"shocked": "impact", "facepalm": "fail", "sad": "fail", "celebrate": "success", "type": "typing"}
+AMBIENCE = {"server_room": "amb_machine", "street": "amb_city", "shop": "amb_city"}
+
+
+def _story_cues(v: dict, tm: dict) -> list[tuple[float, str]]:
+    """Sound on the actions the viewer SEES (rules.md: SFX on real actions + place ambience)."""
+    t0, dur = tm["start"], tm["end"] - tm["start"]
+    cues = []
+    if v.get("location") in AMBIENCE:
+        cues.append((t0, AMBIENCE[v["location"]]))
+    for c in v.get("cast", []):
+        if c.get("walk_from") in ("left", "right"):
+            cues += [(t0 + 0.1 + k * 0.32, "footstep") for k in range(4)]
+        if c.get("say"):
+            cues.append((t0 + max(0.0, min(0.9, float(c.get("say_at", 0.15)))) * dur, "pop"))
+        for a in (c.get("actions") or [])[1:]:
+            k = STORY_POSE_CUES.get(a.get("pose"))
+            if k:
+                cues.append((t0 + max(0.0, min(0.95, float(a.get("at", 0)))) * dur, k))
+        for m in c.get("mood") or []:
+            k = {"overloaded": "fail", "happy": "success", "surprised": "notify"}.get(m.get("face"))
+            if k and float(m.get("at", 0)) > 0:
+                cues.append((t0 + float(m["at"]) * dur, k))
+        if c.get("prop") == "phone":
+            cues.append((t0 + 0.4, "notify"))
+        elif c.get("prop") == "coin":
+            cues.append((t0 + 0.4, "money"))
+    return cues
+
+
 def plan_cues(scenes: list[dict], timings: list[dict]) -> list[tuple[float, str]]:
     cues = [(0.0, "impact")]
     for i, (s, tm) in enumerate(zip(scenes, timings)):
         kind = s.get("visual", {}).get("type")
+        if kind == "story":
+            cues += _story_cues(s["visual"], tm)
         if i > 0 and s.get("transition", "fade") != "cut":
             cues.append((max(0.0, tm["start"] - 0.2), "whoosh"))
         if kind == "stat":
@@ -217,13 +252,19 @@ def build_sfx_track(cues, duration: float, lib: Library, seed: int, attributions
     cache: dict[str, np.ndarray] = {}
     for at, kind in cues:
         asset = lib.pick(kind, rnd)
-        key = str(asset.path) if asset else f"synth:{kind}"
+        amb = kind.startswith("amb_")
+        if amb and not asset:
+            continue                              # no recorded ambience: silence beats a fake one
+        if not asset and kind not in SFX_CATEGORIES:
+            kind = {"fail": "impact", "success": "chime", "footstep": "tick", "typing": "tick",
+                    "notify": "chime", "door": "impact", "money": "chime"}.get(kind, "pop")
+        key = (str(asset.path) if asset else f"synth:{kind}") + (":amb" if amb else "")
         if key not in cache:
             if asset:
-                clip = read_audio(asset.path)[: int(2.5 * SR)]
-                clip = clip / (np.abs(clip).max() + 1e-9) * 0.8
+                clip = read_audio(asset.path)[: int((8.0 if amb else 2.5) * SR)]
+                clip = clip / (np.abs(clip).max() + 1e-9) * (0.22 if amb else 0.8)
                 attributions.append({"type": "sfx", "file": asset.path.name, "source": asset.source,
-                                     "license": asset.license})
+                                     "license": asset.license, "attribution_required": asset.attribution_required})
             else:
                 clip = synth_sfx(kind, seed)
             cache[key] = clip
@@ -283,9 +324,12 @@ def mood_distance(feat: dict, theme: str | None) -> float:
     return tempo + abs(feat["energy"] - m["energy"]) + abs(feat["bright"] - m["bright"])
 
 
-def pick_music(lib: Library, theme: str | None, rnd: random.Random) -> Asset | None:
-    """Best mood match for the theme among licensed library tracks (features cached next to them)."""
+def pick_music(lib: Library, theme: str | None, rnd: random.Random, mood: str | None = None) -> Asset | None:
+    """The storyboard's music mood (curious/upbeat/calm/tense/fun) wins; else the best mood match for
+    the theme among licensed library tracks (features cached next to them)."""
     tracks = [a for a in lib.assets if a.category == "music"]
+    if mood and [a for a in tracks if a.mood == mood]:
+        return rnd.choice([a for a in tracks if a.mood == mood])
     if not tracks or not theme:
         return rnd.choice(tracks) if tracks else None
     cache_p = tracks[0].path.parent / "music_features.json"
@@ -311,15 +355,15 @@ def pick_music(lib: Library, theme: str | None, rnd: random.Random) -> Asset | N
 
 
 def music_track(duration: float, lib: Library, seed: int, workdir: Path, attributions: list,
-                theme: str | None = None) -> Path:
+                theme: str | None = None, mood: str | None = None) -> Path:
     out = workdir / "music.wav"
-    asset = pick_music(lib, theme, random.Random(seed))
+    asset = pick_music(lib, theme, random.Random(seed), mood)
     if asset:
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-stream_loop", "-1", "-i", str(asset.path),
                         "-t", f"{duration:.3f}", "-ac", "1", "-ar", str(SR),
                         "-af", f"afade=t=out:st={max(0, duration - 1.5):.3f}:d=1.5", str(out)], check=True)
         attributions.append({"type": "music", "file": asset.path.name, "source": asset.source,
-                             "license": asset.license})
+                             "license": asset.license, "attribution_required": asset.attribution_required})
     else:
         write_wav(out, synth_music(duration, seed, theme))
         attributions.append({"type": "music", "file": "procedural", "source": "ytauto procedural synth",
@@ -329,14 +373,15 @@ def music_track(duration: float, lib: Library, seed: int, workdir: Path, attribu
 
 def mix(voice: Path, out: Path, duration: float, scenes: list[dict], timings: list[dict],
         workdir: Path, seed: int, music: bool = True, sfx: bool = True,
-        sfx_dir: Path | None = None, music_dir: Path | None = None, theme: str | None = None) -> list[dict]:
+        sfx_dir: Path | None = None, music_dir: Path | None = None, theme: str | None = None,
+        mood: str | None = None) -> list[dict]:
     """Writes the final normalised mono narration+music+SFX track. Returns attributions."""
     attributions: list[dict] = []
     inputs, chains, labels = ["-i", str(voice)], ["[0:a]asplit=2[v][vsc]"], ["[v]"]
     idx = 1
     if music:
         m = music_track(duration, Library.load(music_dir) if music_dir else Library(), seed, workdir,
-                        attributions, theme)
+                        attributions, theme, mood)
         inputs += ["-i", str(m)]
         chains.append(f"[{idx}:a]volume=0.22[m];[m][vsc]sidechaincompress=threshold=0.015:ratio=12:"
                       f"attack=20:release=400:makeup=1[md]")
