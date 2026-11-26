@@ -34,8 +34,10 @@ CAST = {
     "arjun": {"name": "Arjun", "torso": "#2f6fde", "acc": "glasses_hair"},
     "priya": {"name": "Priya", "torso": "#e5484d", "acc": "ponytail_scarf"},
     "raju": {"name": "Raju", "torso": "#3bb273", "acc": "cap_moustache"},
+    "amma": {"name": "Amma", "torso": "#8e44ad", "acc": "bun_saree"},
+    "cousin": {"name": "Karthik", "torso": "#f5a524", "acc": "curly_cap"},
 }
-LOCATIONS = ("office", "street", "server_room", "home", "shop", "classroom", "network")
+LOCATIONS = ("office", "street", "server_room", "home", "shop", "classroom", "network", "phone", "map")
 
 
 def e(s) -> str:
@@ -59,6 +61,14 @@ def _accessories(kind: str, ink: str = INK) -> tuple[str, str]:
                 f'<circle cx="40" cy="-20" r="6" fill="#e5484d"/>')
         neck = (f'<path d="M-24 -166 Q0 -148 24 -166" fill="none" stroke="#f5a524" stroke-width="12" stroke-linecap="round"/>'
                 f'<path d="M14 -160 L22 -128" stroke="#f5a524" stroke-width="10" stroke-linecap="round"/>')
+    elif kind == "bun_saree":
+        head = (f'<path d="M-42 -4 C-46 -50 44 -54 42 -4 C28 -28 -28 -28 -42 -4 Z" fill="{INK}"/>'
+                f'<circle cx="0" cy="-48" r="16" fill="{INK}"/><circle cx="0" cy="2" r="3" fill="#e5484d"/>')
+        neck = (f'<path d="M-20 -160 L26 -60" stroke="#c0392b" stroke-width="12" stroke-linecap="round"/>')
+    elif kind == "curly_cap":
+        head = (f'<path d="M-40 -14 C-40 -52 40 -52 40 -14 Z" fill="#f5a524" stroke="{INK}" stroke-width="4"/>'
+                f'<path d="M-40 -16 L-70 -20" stroke="{INK}" stroke-width="7" stroke-linecap="round"/>')
+        neck = ""
     elif kind == "cap_moustache":
         head = (f'<path d="M-40 -16 C-38 -52 38 -52 40 -16 Z" fill="#3bb273" {s} stroke-width="4"/>'
                 f'<path d="M30 -18 L62 -14" {s} stroke-width="7"/>'
@@ -255,6 +265,10 @@ def location(loc: str, W: int, H: int, sid: str, time: str, sign: str, seed: int
             js.append(f'tl.fromTo("#{pid}",{{attr:{{cx:{x},cy:{y}}}}},{{attr:{{cx:{a},cy:{b}}},duration:{rnd.uniform(1.2, 2.2):.2f},'
                       f'repeat:{max(0, int(dur / 1.8))},ease:"none"}},{t0 + rnd.random():.3f});')
         bg += "".join(lines) + "".join(dots) + (_board(int(W * 0.25), int(H * 0.05), int(W * 0.5), int(H * 0.13), sid, sign, "screen") if sign else "")
+    elif loc in ("phone", "map"):
+        bg = f'<rect x="-200" y="-200" width="{W + 400}" height="{H + 400}" fill="{"#1b2550" if night else "#eaf3ff"}"/>'
+        if sign:
+            bg += _board(int(W * 0.04), int(H * 0.03), int(W * 0.34), int(H * 0.14), sid, sign)
     else:   # indoor places share a room shell (wall, floor, window) + their furniture
         sky = _sky(W, H, time, sid)
         win_w, win_h = int(W * 0.26), int(H * 0.3)
@@ -324,6 +338,85 @@ def location(loc: str, W: int, H: int, sid: str, time: str, sign: str, seed: int
     return bg, fg, js
 
 
+# ------------------------------------------------------------------ phone close-up + route map
+def _phone(sid: str, scr: dict, W: int, H: int, t0: float, dur: float, px: float) -> tuple[str, list[str]]:
+    """A big phone screen: kind chat (messages pop in), spinner (loading), playing (film starts)."""
+    pw, ph = int(min(W * 0.46, H * 0.66)), int(H * 0.9)
+    x0, y0 = int(px * W - pw / 2), int(H * 0.05)
+    kind = scr.get("kind", "chat")
+    js, inner = [], ""
+    sx, sy, sw, sh = x0 + 22, y0 + 70, pw - 44, ph - 120
+    head = f'<rect x="{sx}" y="{sy}" width="{sw}" height="64" fill="#1d2433"/>'
+    title = e(scr.get("title", ""))
+    if kind == "chat":
+        inner = head + (f'<foreignObject x="{sx + 16}" y="{sy + 8}" width="{sw - 32}" height="50"><div xmlns="http://www.w3.org/1999/xhtml" '
+                        f'class="w-chat-title">{title or "Family group"}</div></foreignObject>')
+        msgs = scr.get("messages", [])[:4]
+        step = (dur * 0.75) / max(1, len(msgs))
+        for k, m in enumerate(msgs):
+            mid = f"{sid}-msg{k}"
+            mine = m.get("from", "").lower() in ("me", "arjun", "you")
+            row = int((sh - 110) / 4)
+            y = sy + 90 + k * row
+            inner += (f'<foreignObject id="{mid}" x="{sx + 14}" y="{y}" width="{sw - 28}" height="{row - 8}" opacity="0">'
+                      f'<div xmlns="http://www.w3.org/1999/xhtml" class="w-msg{" me" if mine else ""}">'
+                      f'<b>{e(m.get("from", ""))}</b>{e(m.get("text", ""))}</div></foreignObject>')
+            js.append(f'tl.fromTo("#{mid}",{{opacity:0,attr:{{transform:"translate(0,24)"}}}},{{opacity:1,attr:{{transform:"translate(0,0)"}},'
+                      f'duration:0.25,ease:"back.out(1.7)"}},{t0 + 0.2 + k * step:.3f});')
+    elif kind == "spinner":
+        cx, cy = sx + sw // 2, sy + sh // 2
+        inner = (f'<rect x="{sx}" y="{sy}" width="{sw}" height="{sh}" fill="#0b0f1e"/>'
+                 f'<circle cx="{cx}" cy="{cy}" r="60" fill="none" stroke="#3a4266" stroke-width="12"/>'
+                 f'<g id="{sid}-spin" transform="translate({cx},{cy}) rotate(0)"><path d="M0 -60 A60 60 0 0 1 60 0" fill="none" '
+                 f'stroke="#e5484d" stroke-width="12" stroke-linecap="round"/></g>'
+                 f'<foreignObject x="{sx}" y="{cy + 90}" width="{sw}" height="120"><div xmlns="http://www.w3.org/1999/xhtml" '
+                 f'class="w-screen-txt">{title or "Loading…"}</div></foreignObject>')
+        js.append(f'tl.fromTo("#{sid}-spin",{{attr:{{transform:"translate({cx},{cy}) rotate(0)"}}}},'
+                  f'{{attr:{{transform:"translate({cx},{cy}) rotate({int(dur * 360)})"}},duration:{dur:.2f},ease:"none"}},{t0:.3f});')
+    else:  # playing
+        inner = (f'<rect x="{sx}" y="{sy}" width="{sw}" height="{sh}" fill="#141a33"/>'
+                 f'<rect x="{sx + 20}" y="{sy + 40}" width="{sw - 40}" height="{int(sh * 0.55)}" rx="12" fill="#2f6fde"/>'
+                 f'<path d="M{sx + sw // 2 - 30} {sy + 40 + int(sh * 0.275) - 40} l70 40 l-70 40 Z" fill="#fff"/>'
+                 f'<rect x="{sx + 20}" y="{sy + int(sh * 0.65)}" width="{sw - 40}" height="12" rx="6" fill="#3a4266"/>'
+                 f'<rect id="{sid}-prog" x="{sx + 20}" y="{sy + int(sh * 0.65)}" width="{sw - 40}" height="12" rx="6" fill="#e5484d"/>'
+                 f'<foreignObject x="{sx}" y="{sy + int(sh * 0.7)}" width="{sw}" height="160"><div xmlns="http://www.w3.org/1999/xhtml" '
+                 f'class="w-screen-txt">{title or "Playing"}</div></foreignObject>')
+        js.append(f'tl.fromTo("#{sid}-prog",{{attr:{{width:0}}}},{{attr:{{width:{int((sw - 40) * 0.35)}}},duration:{dur:.2f},ease:"none"}},{t0:.3f});')
+    svg = (f'<g id="{sid}-ph"><rect x="{x0}" y="{y0}" width="{pw}" height="{ph}" rx="46" fill="#1d2433"/>'
+           f'<rect x="{x0 + 22}" y="{y0 + 70}" width="{pw - 44}" height="{ph - 120}" rx="8" fill="#ffffff"/>{inner}'
+           f'<rect x="{x0 + pw // 2 - 50}" y="{y0 + 26}" width="100" height="14" rx="7" fill="#3a4266"/></g>')
+    js.insert(0, f'tl.from("#{sid}-ph",{{opacity:0,attr:{{transform:"translate(0,60)"}},duration:0.35,ease:"expo.out"}},{t0:.3f});')
+    return svg, js
+
+
+def _route(sid: str, route: dict, W: int, H: int, t0: float, dur: float) -> tuple[str, list[str]]:
+    """A labelled route (e.g. USA → ocean → Chennai → Madurai) drawn on, with a film dot travelling it.
+    route: {"stops": ["Byte (USA)", "Ocean cable", "Chennai", "Madurai"], "box_at": 2, "fast": false}"""
+    stops = route.get("stops", [])[:6] or ["Far server", "Your home"]
+    n = len(stops)
+    pts = [(int(W * (0.1 + 0.8 * k / max(1, n - 1))), int(H * (0.55 + (0.12 if k % 2 else -0.08)))) for k in range(n)]
+    d = "M" + " L".join(f"{x} {y}" for x, y in pts)
+    out = [f'<path id="{sid}-rt" d="{d}" fill="none" stroke="#8e9bb0" stroke-width="10" stroke-dasharray="22 16" stroke-linecap="round"/>']
+    js = [f'tl.from("#{sid}-rt",{{opacity:0,duration:0.4}},{t0:.3f});']
+    for k, ((x, y), lab) in enumerate(zip(pts, stops)):
+        nid = f"{sid}-st{k}"
+        col = "#e5484d" if route.get("box_at") == k else ["#2f6fde", "#3bb273", "#f5a524", "#8e44ad"][k % 4]
+        out.append(f'<g id="{nid}"><circle cx="{x}" cy="{y}" r="26" fill="{col}" stroke="{INK}" stroke-width="5"/>'
+                   f'<foreignObject x="{x - 150}" y="{y + 34}" width="300" height="110"><div xmlns="http://www.w3.org/1999/xhtml" '
+                   f'class="w-stop">{e(lab)}</div></foreignObject></g>')
+        js.append(f'tl.from("#{nid}",{{opacity:0,attr:{{transform:"translate(0,20)"}},duration:0.3,ease:"back.out(2)"}},{t0 + 0.15 + k * 0.25:.3f});')
+        if route.get("box_at") == k:
+            out.append(f'<g transform="translate({x - 40},{y - 150}) scale(1.4)">{stk.PROP_SVG["filmbox"].format(ink=INK)}</g>')
+    # the film travels: the whole long road, or only the short last hop when a box is near
+    a = route.get("box_at") if route.get("fast") and route.get("box_at") is not None else 0
+    seg = pts[a:] if len(pts[a:]) > 1 else pts[-2:]
+    out.append(f'<circle id="{sid}-dot" cx="{seg[0][0]}" cy="{seg[0][1]}" r="16" fill="#ffd84d" stroke="{INK}" stroke-width="4"/>')
+    hop = (dur * (0.25 if route.get("fast") else 0.75)) / max(1, len(seg) - 1)
+    for k in range(1, len(seg)):
+        js.append(f'tl.to("#{sid}-dot",{{attr:{{cx:{seg[k][0]},cy:{seg[k][1]}}},duration:{hop:.2f},ease:"power1.inOut"}},{t0 + 0.6 + (k - 1) * hop:.3f});')
+    return "".join(out), js
+
+
 # ------------------------------------------------------------------ speech bubble
 def place_cast(xs: list[float], no_stand: list[tuple[float, float]], gap: float = 0.16) -> list[float]:
     """Each character takes the free spot nearest to where the writer put it: never inside
@@ -340,7 +433,8 @@ def place_cast(xs: list[float], no_stand: list[tuple[float, float]], gap: float 
 # sign/board/banner position per place (x0, y0, x1, y1 as fractions) — bubbles avoid it
 SIGN_BOX = {"office": (0.36, 0.05, 0.70, 0.19), "home": (0.55, 0.08, 0.87, 0.28), "street": (0.3, 0.06, 0.7, 0.2),
             "shop": (0.04, 0.03, 0.96, 0.14), "classroom": (0.18, 0.06, 0.82, 0.28),
-            "server_room": (0.06, 0.06, 0.40, 0.22), "network": (0.25, 0.05, 0.75, 0.18)}
+            "server_room": (0.06, 0.06, 0.40, 0.22), "network": (0.25, 0.05, 0.75, 0.18),
+            "phone": (0.04, 0.03, 0.38, 0.17), "map": (0.04, 0.03, 0.38, 0.17)}
 
 
 def _bubble(sid: str, x: float, y: float, text: str, W: int, flip: bool, sign_box=None, H: int = 0) -> str:
@@ -374,19 +468,28 @@ def visual(i: int, v: dict, t0: float, dur: float, long_: bool, seed: int) -> tu
     time = "night" if v.get("time") == "night" else "day"
     bg, fg, js = location(loc, W, H, sid, time, str(v.get("sign", "")), seed + i * 7, t0, dur)
     sign_box = SIGN_BOX.get(loc, (0.3, 0.04, 0.72, 0.22)) if v.get("sign") else None
+    if loc == "phone":                          # the phone screen is the scene; the cast stands beside it
+        has_cast = bool(v.get("cast"))
+        ph_svg, ph_js = _phone(sid, v.get("screen") or {}, W, H, t0, dur, 0.66 if has_cast else 0.5)
+        bg += ph_svg
+        js += ph_js
+    elif loc == "map":
+        rt_svg, rt_js = _route(sid, v.get("route") or {}, W, H, t0, dur)
+        bg += rt_svg
+        js += rt_js
     gy = int(H * 0.86) if loc != "street" else int(H * 0.86) - 40      # street: stand on the pavement
-    dark = loc in DARK_PLACES or (loc == "street" and time == "night")
+    dark = loc in DARK_PLACES or (loc in ("street", "phone", "map") and time == "night")
     chars, bubbles = [], []
     ch_h = int(H * (0.56 if long_ else 0.58))
     cast = v.get("cast") or []
-    xs = place_cast([float(c.get("x", 0.3 + 0.4 * k)) for k, c in enumerate(cast[:3])],
+    xs = place_cast([float(c.get("x", 0.3 + 0.4 * k)) for k, c in enumerate(cast[:4])],
                     [] if loc == "shop" and False else NO_STAND.get(loc, []))
     if dark and cast:                           # a soft pool of light where the cast stands
         bg += (f'<ellipse cx="{W // 2}" cy="{gy}" rx="{int(W * 0.48)}" ry="{int(H * 0.06)}" fill="#ffffff" opacity="0.10"/>'
                f'<rect x="0" y="{int(gy - ch_h * 1.15)}" width="{W}" height="{int(ch_h * 1.15)}" fill="url(#{sid}-spot)"/>'
                f'<defs><radialGradient id="{sid}-spot" cx="0.5" cy="0.8" r="0.7"><stop offset="0" stop-color="#7fa6ff" stop-opacity="0.22"/>'
                f'<stop offset="1" stop-color="#7fa6ff" stop-opacity="0"/></radialGradient></defs>')
-    for k, c in enumerate(cast[:3]):
+    for k, c in enumerate(cast[:4]):
         who = c.get("who", "arjun")
         cx = int(xs[k] * W)
         csid = f"s{i}c{k}"
@@ -466,6 +569,13 @@ CSS = """
 .w-banner{color:#fff;font-size:56px}
 .w-bwrap{height:100%;display:flex;align-items:flex-end;justify-content:center}
 .w-bwrap.w-top{align-items:flex-start}
+.w-chat-title{color:#fff;font-family:'DejaVu Sans','Noto Sans Tamil',sans-serif;font-weight:700;font-size:32px;line-height:50px}
+.w-msg{display:inline-block;max-width:92%;background:#e9eef5;border-radius:22px;padding:10px 18px;font-family:'DejaVu Sans','Noto Sans Tamil',sans-serif;
+ font-size:34px;line-height:1.15;color:#1d2433}
+.w-msg b{display:block;font-size:22px;color:#2f6fde}
+.w-msg.me{float:right;background:#c9f2d4}
+.w-screen-txt{color:#fff;text-align:center;font-family:'DejaVu Sans','Noto Sans Tamil',sans-serif;font-weight:700;font-size:40px}
+.w-stop{text-align:center;font-family:'Caveat','Noto Sans Tamil',cursive;font-weight:700;font-size:44px;color:#1d2433;line-height:1}
 .w-bubble{background:#fff;border:4px solid #1d2433;border-radius:28px;padding:14px 22px;font-family:'Caveat','Noto Sans Tamil',cursive;
  font-weight:700;font-size:46px;line-height:1.05;color:#1d2433;text-align:center}
 """

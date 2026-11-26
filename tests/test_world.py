@@ -34,3 +34,18 @@ def test_engine_guarantees_from_scene_review():
     assert "w-top" in html
     # camera zoom stays gentle
     assert max(v[1] for v in world.CAMERA.values()) <= 1.1
+
+
+def test_phone_screens_route_and_new_cast():
+    for kind in ("chat", "spinner", "playing"):
+        html, js = world.visual(1, {"type": "story", "location": "phone", "screen": {
+            "kind": kind, "title": "Family group", "messages": [{"from": "Karthik", "text": "Bro, your app is a loading screen"}]},
+            "cast": [{"who": "arjun", "x": 0.2}]}, 0, 4, False, 1)
+        assert "s1w-ph" in html
+    assert "loading screen" in world.visual(1, {"type": "story", "location": "phone", "screen": {
+        "kind": "chat", "messages": [{"from": "Karthik", "text": "Bro, your app is a loading screen"}]}}, 0, 4, False, 1)[0]
+    html, js = world.visual(2, {"type": "story", "location": "map", "route": {"stops": ["Byte (USA)", "Ocean", "Chennai", "Madurai"],
+                                                                              "box_at": 2, "fast": True}}, 0, 5, True, 1)
+    assert "Madurai" in html and "s2w-dot" in html and any("s2w-dot" in x for x in js)
+    html, _ = world.visual(3, {"type": "story", "location": "home", "cast": [{"who": "amma"}, {"who": "cousin"}, {"who": "priya"}, {"who": "arjun"}]}, 0, 3, False, 1)
+    assert "s3c3-torso" in html and "#8e44ad" in html

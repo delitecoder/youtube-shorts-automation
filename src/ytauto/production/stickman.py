@@ -67,6 +67,9 @@ PROP_SVG = {   # small hand-drawn-style props, drawn at the figure's right hand 
             '<text x="30" y="-19" font-size="34" text-anchor="middle" fill="{ink}" stroke="none" font-family="Caveat">$</text></g>',
     "chart": '<g stroke="{ink}" stroke-width="4" fill="none"><path d="M8 -6 L8 -80 M8 -6 L96 -6"/>'
              '<path d="M16 -18 L40 -40 L60 -30 L90 -72" stroke="#e5484d"/></g>',
+    "filmbox": '<g stroke="{ink}" stroke-width="4"><rect x="8" y="-96" width="80" height="100" rx="8" fill="#e5484d"/>'
+               '<rect x="18" y="-80" width="60" height="40" fill="#1d2433"/><path d="M38 -72 l18 12 l-18 12 Z" fill="#fff" stroke="none"/>'
+               '<line x1="18" y1="-24" x2="78" y2="-24"/><line x1="18" y1="-10" x2="78" y2="-10"/></g>',
     "question": '<text x="18" y="-20" font-size="96" fill="#e5484d" font-family="Caveat" font-weight="700">?</text>',
 }
 
