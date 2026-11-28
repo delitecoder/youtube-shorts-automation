@@ -1,0 +1,34 @@
+# Pronunciation dictionary seed (studio.audio.pronunciation). Changes only what TTS SPEAKS; scripts,
+# captions and on-screen text keep the original term. The Sheets tab `Pronunciation` adds/overrides
+# entries (status: verified | unverified). `lang: any` applies to every language.
+entries:
+  - {term: SQL, spoken: sequel, lang: any, status: verified, notes: "common industry reading"}
+  - {term: JSON, spoken: jay-son, lang: any, status: verified}
+  - {term: GUI, spoken: gooey, lang: any, status: verified}
+  - {term: nginx, spoken: engine x, lang: any, status: verified}
+  - {term: Kubernetes, spoken: koo-ber-net-eez, lang: any, status: verified}
+  - {term: kubectl, spoken: cube control, lang: any, status: verified}
+  - {term: PostgreSQL, spoken: post-gres Q L, lang: any, status: verified}
+  - {term: MySQL, spoken: my S Q L, lang: any, status: verified}
+  - {term: SQLite, spoken: S Q lite, lang: any, status: verified}
+  - {term: GIF, spoken: jif, lang: any, status: unverified, notes: "creator's pronunciation; contested"}
+  - {term: Linux, spoken: lin-ux, lang: any, status: verified}
+  - {term: cache, spoken: cash, lang: any, status: verified}
+  - {term: LaTeX, spoken: lay-tech, lang: any, status: verified}
+  - {term: YAML, spoken: yam-ul, lang: any, status: verified}
+  - {term: OAuth, spoken: oh auth, lang: any, status: verified}
+  - {term: UPI, spoken: U P I, lang: any, status: verified}
+  - {term: LLM, spoken: L L M, lang: any, status: verified}
+  - {term: LLMs, spoken: L L Ms, lang: any, status: verified}
+  - {term: GPT, spoken: G P T, lang: any, status: verified}
+  - {term: ChatGPT, spoken: chat G P T, lang: any, status: verified}
+  - {term: CUDA, spoken: koo-da, lang: any, status: verified}
+  - {term: Wi-Fi, spoken: why-fy, lang: any, status: verified}
+  - {term: IEEE, spoken: I triple E, lang: any, status: verified}
+  - {term: "C#", spoken: C sharp, lang: any, status: verified}
+  - {term: ".NET", spoken: dot net, lang: any, status: verified}
+  - {term: "C++", spoken: C plus plus, lang: any, status: verified}
+  - {term: async, spoken: ay-sink, lang: any, status: verified}
+# All-caps words that are READ AS WORDS (everything else 2-6 caps is spelled out letter by letter).
+word_acronyms: [RAM, ROM, NASA, LAN, WAN, SIM, PIN, CAPTCHA, RAID, SaaS, PaaS, IaaS, ASCII, SCSI, CRUD, REST,
+                OPEC, LIDAR, RADAR, NATO, UNIX, BIOS, DOS, POSIX, JPEG, PNG, WASM, CORS]

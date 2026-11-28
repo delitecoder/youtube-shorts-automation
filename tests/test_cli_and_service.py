@@ -55,8 +55,9 @@ def test_generated_flow_dry_run(tmp_path):
     assert r["ok"] and r["state"] == "AWAITING_APPROVAL"
     actions = (rt / "dry_run_actions.jsonl").read_text()
     assert "02_Generated" in actions and "03_Awaiting_Approval" in actions
-    # one item per cycle: nothing new while one is pending
-    assert run(rt, "discover")["action"] == "none"
+    # after the English submit the next action is its Tamil version (rules.md §1.6), not a new item
+    nxt = run(rt, "discover")
+    assert nxt["action"] == "localize" and nxt["video_id"] == vid
 
 
 def test_existing_video_flow_dry_run(tmp_path):

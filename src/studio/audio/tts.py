@@ -225,7 +225,10 @@ def synthesize_all(texts: list[str], outdir: Path, settings, store, log=print) -
     and cost no characters; only new/changed scenes are sent to the API.
     Returns (clip paths, provider name, list of fallback reasons)."""
     import shutil as _sh
-    texts = [clean_text(t) for t in texts]
+    from studio.audio import pronunciation
+    lang = "ta" if str(getattr(settings, "tts_language", "")).startswith("ta") else "en"
+    table, words = pronunciation.load(store, lang)
+    texts = [pronunciation.apply(clean_text(t), table, words) for t in texts]     # spoken form; script unchanged
     order = [settings.tts_provider] + [p for p in settings.tts_fallbacks if p != settings.tts_provider]
     reasons: list[str] = []
     for name in order:

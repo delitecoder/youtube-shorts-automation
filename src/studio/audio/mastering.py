@@ -54,7 +54,7 @@ def measure_lufs(path: Path) -> float | None:
     return None
 
 
-def normalize_two_pass(src: Path, dst: Path, lufs: float = -14.0, tp: float = -1.5) -> dict:
+def normalize_two_pass(src: Path, dst: Path, lufs: float = -14.0, tp: float = -1.5, channels: int = 1) -> dict:
     """Accurate EBU R128 normalisation for short narrated clips.
 
     Single-pass `loudnorm` undershoots on 45–60 s mixes with pauses (measured -15.8 / -16.2 LUFS).
@@ -75,7 +75,7 @@ def normalize_two_pass(src: Path, dst: Path, lufs: float = -14.0, tp: float = -1
               f"offset={d['target_offset']}:linear=true")
     else:                                            # could not measure: fall back to one pass
         af = f"loudnorm=I={lufs}:TP={tp}:LRA=11"
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(src), "-af", af, "-ar", str(SR), "-ac", "1",
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(src), "-af", af, "-ar", str(SR), "-ac", str(channels),
                     str(dst)], check=True)
     passes, final = 2, measure_lufs(dst)
     if final is not None and abs(final - lufs) > 0.5:
@@ -83,7 +83,7 @@ def normalize_two_pass(src: Path, dst: Path, lufs: float = -14.0, tp: float = -1
         limit = 10 ** (tp / 20)                      # -1.5 dBTP -> 0.841 linear
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(dst), "-af",
                         f"volume={lufs - final:.2f}dB,alimiter=limit={limit:.3f}:level=disabled",
-                        "-ar", str(SR), "-ac", "1", str(tmp)], check=True)
+                        "-ar", str(SR), "-ac", str(channels), str(tmp)], check=True)
         tmp.replace(dst)
         passes, final = 3, measure_lufs(dst)
     return {"lufs": final, "passes": passes}

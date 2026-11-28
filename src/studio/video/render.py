@@ -299,7 +299,8 @@ def render(storyboard: dict, scene_audio: list[Path], workdir: Path, out_mp4: Pa
     raw_wav, norm_wav = workdir / "narration_raw.wav", workdir / "narration.wav"
     timings = audio.build_timeline(scene_audio, raw_wav)
     seed = sum(storyboard.get("video_id", "x").encode())
-    attributions = sound.mix(raw_wav, norm_wav, timings[-1]["end"], scenes, timings, workdir, seed,
+    from studio.audio import stems as stemmix
+    attributions = stemmix.mix(raw_wav, norm_wav, timings[-1]["end"], scenes, timings, workdir, seed,
                              music=music, sfx=sfx, sfx_dir=sfx_dir, music_dir=music_dir,
                              theme=storyboard.get("theme"), mood=storyboard.get("music"))
     (workdir / "attributions.json").write_text(json.dumps(attributions, indent=1))
@@ -317,6 +318,7 @@ def render(storyboard: dict, scene_audio: list[Path], workdir: Path, out_mp4: Pa
             report = qc(out_mp4, timings, long_=long_)
             report |= {"attributions": attributions, "engine": "hyperframes"}
             if report["ok"]:
+                report = full_qc(report, out_mp4, workdir, norm_wav, long_)
                 (workdir / "timings.json").write_text(json.dumps({"timings": timings, "qc": report}, indent=1))
                 return report
             fallback_reason = f"hyperframes QC failed: {report['checks']}"
@@ -391,7 +393,23 @@ def render(storyboard: dict, scene_audio: list[Path], workdir: Path, out_mp4: Pa
     report["engine"] = "pillow"
     if fallback_reason:
         report["fallback_reason"] = fallback_reason
+    report = full_qc(report, out_mp4, workdir, norm_wav, False)
     (workdir / "timings.json").write_text(json.dumps({"timings": timings, "qc": report}, indent=1))
+    return report
+
+
+def full_qc(report: dict, out_mp4: Path, workdir: Path, norm_wav: Path, long_: bool) -> dict:
+    """Add objective video QC (decode/black/frozen/sync) and audio QC (loudness, peak, clipping, stems,
+    speech-over-music) to the render report; any critical finding makes report['ok'] False (blocks submit)."""
+    from studio.audio import qc as aqc
+    from studio.video import qc as vqc
+    v = vqc.check(out_mp4, long_=long_)
+    a = aqc.check(norm_wav, workdir / "stems" if (workdir / "stems").exists() else None,
+                  video_duration=v["measured"].get("duration_s"))
+    report["video_qc"], report["audio_qc"] = v, a
+    report["ok"] = bool(report["ok"] and v["pass"] and a["pass"])
+    (workdir / "qc_report.json").write_text(json.dumps({"render": report.get("checks"), "video": v, "audio": a},
+                                                        indent=1, default=str))
     return report
 
 

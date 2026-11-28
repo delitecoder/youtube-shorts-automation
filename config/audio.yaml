@@ -7,14 +7,18 @@ master:
   channels: 2
 stems: [dialogue, music, sfx, ambience]
 dialogue:
+  target_lufs: -20.0              # dialogue-anchored mix: every TTS engine is levelled to this first
   highpass_hz: 80
   deess: true
   compressor: {threshold_db: -20, ratio: 3, attack_ms: 10, release_ms: 120}
 music:
-  base_gain_db: -16
-  duck: {threshold: 0.02, ratio: 10, attack_ms: 20, release_ms: 450}
+  relative_to_dialogue_db: -14    # music bed loudness relative to the levelled dialogue
+  base_gain_db: -16               # (legacy, unused by the stem mix)
+  duck: {threshold: 0.03, ratio: 4, attack_ms: 20, release_ms: 450}
   speech_band_notch_db: -3        # dip 1–4 kHz in music under speech
   crossfade_s: 1.5
+ambience:
+  relative_to_dialogue_db: -24
 sfx:
   base_gain_db: -10
   require_reason: true            # every cue must carry a reason tied to a scene event
