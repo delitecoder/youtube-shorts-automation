@@ -54,8 +54,8 @@ def build_aligned(scenes: list[dict], timings: list[dict], asr_words: list[tuple
     unmatched words are interpolated between matched neighbours inside the scene's speech interval.
     Returns (captions, stats) where stats has matched ratio and max offset vs the estimate."""
     from studio.audio.speech import align
-    out, matched, total = [], 0, 0
-    for s, t in zip(scenes, timings):
+    out, matched, total, estimated = [], 0, 0, []
+    for n, (s, t) in enumerate(zip(scenes, timings), 1):
         est = word_times(s["narration"], t["speech_start"], t["speech_end"])
         words = [w for w, _, _ in est]
         spoken = [w for w in asr_words if t["speech_start"] - 0.3 <= w[1] <= t["speech_end"] + 0.3]
@@ -73,8 +73,16 @@ def build_aligned(scenes: list[dict], timings: list[dict], asr_words: list[tuple
             run = (nxt_i if nxt_i is not None else len(al)) - i       # unmatched words sharing the gap
             span = max(0.05, (nxt - prev) / run)
             fixed.append((w, prev, min(max(nxt, prev + 0.05), prev + span)))
+        # ASR can stretch one word over a pause and drop the rest; then the tail overruns the scene. Use the
+        # estimate for that scene (reported in stats) instead of captions that run into the next scene.
+        bound = timings[n]["speech_start"] if n < len(timings) else t["speech_end"] + 0.3
+        stretched = any(x and x[2] - x[1] > 1.5 for x in al)          # one "word" spanning a pause
+        if stretched or any(e > bound + 1e-6 or b < a for (_, _, a), (_, b, e) in zip([("", 0, 0)] + fixed, fixed)):
+            fixed = est
+            estimated.append(n)
         out += chunk(fixed)
-    return out, {"matched_ratio": round(matched / total, 3) if total else 0.0, "words": total}
+    return out, {"matched_ratio": round(matched / total, 3) if total else 0.0, "words": total,
+                 "estimated_scenes": estimated}
 
 
 def check(caps: list[dict], max_offset_s: float = 0.25) -> list[str]:

@@ -34,6 +34,22 @@ def test_build_aligned_uses_speech_times_and_interpolates_gaps():
     assert st["matched_ratio"] == 0.8 and captions.check(caps) == []
 
 
+def test_build_aligned_falls_back_to_estimate_when_asr_timing_is_degenerate():
+    # regression VIDEO-20261128-001: ASR stretched "a" to the end of the scene and dropped the last words,
+    # so the interpolated tail ran past the next scene's start ("caption starts before the previous one").
+    scenes = [{"narration": "about 822 million a day. Guessing does not scale."},
+              {"narration": "In any payment system."}]
+    timings = [{"speech_start": 0.0, "speech_end": 3.7, "start": 0, "end": 3.8},
+               {"speech_start": 3.8, "speech_end": 5.5, "start": 3.8, "end": 5.6}]
+    asr = [("about", 0.0, 0.2), ("822", 0.2, 0.9), ("million", 0.9, 1.3), ("a", 1.3, 3.8), ("day.", 3.8, 3.8),
+           ("In", 3.8, 4.6), ("any", 4.6, 4.8), ("payment", 4.8, 5.1), ("system,", 5.1, 5.5)]
+    caps, st = captions.build_aligned(scenes, timings, asr)
+    assert captions.check(caps) == []
+    first = [w for c in caps for w in c["words"]][:9]
+    assert all(w[2] <= 3.7 + 1e-6 for w in first)
+    assert st["estimated_scenes"] == [1]
+
+
 def test_caption_check_catches_overlap_and_order():
     caps = [{"start": 0.0, "end": 2.0, "words": [("a", 0, 1), ("b", 1, 2)]},
             {"start": 1.0, "end": 3.0, "words": [("c", 1, 2), ("d", 2, 3)]}]
