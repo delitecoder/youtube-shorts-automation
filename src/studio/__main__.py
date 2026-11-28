@@ -1,5 +1,5 @@
 import sys
 
-from studio.cli.app import main
+from studio.cli.main import main
 
 sys.exit(main())

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from studio.analytics import audit as au
 from studio.core.config import TTS_FREE_TIER_CAP, Settings
 from studio.audio import tts
-from studio.cli.app import rank_topics
+from studio.cli.common import rank_topics
 from studio.editorial import storyboard as sbm
 
 

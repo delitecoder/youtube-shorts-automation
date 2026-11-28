@@ -60,7 +60,7 @@ def test_localize_creates_tamil_item_once(tmp_path):
 
 
 def test_discover_asks_for_tamil_version_after_english_submit():
-    from studio.cli import app as cli
+    from studio.cli import common as cli
     today = "20261125"
     en = SimpleNamespace(video_id=f"VIDEO-{today}-001", state=State.AWAITING_APPROVAL, source_type="GENERATED", notes="")
     ctx = SimpleNamespace(s=Settings.from_env({}))
@@ -113,7 +113,7 @@ def test_localize_from_texts(tmp_path):
 
 
 def test_backlog_guard_blocks_new_item_when_earlier_video_holds_a_future_slot():
-    from studio.cli import app as cli
+    from studio.cli import common as cli
     from datetime import date
     ctx = SimpleNamespace(s=Settings.from_env({}))
     old = SimpleNamespace(video_id="VIDEO-20261126-101", state=State.AWAITING_APPROVAL,
