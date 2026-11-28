@@ -157,3 +157,23 @@ def test_video_qc_blocks_black_wrong_size_missing_audio_and_corrupt(tmp_path):
     good = (_video(tmp_path / "g.mp4")).read_bytes()
     bad.write_bytes(good[: len(good) // 2])
     assert not vqc.check(bad)["pass"]
+
+
+# ---------------- reproducible render manifests
+def test_manifest_changes_with_any_input_and_cache_needs_passing_qc(tmp_path):
+    from studio.video.manifest import build_manifest, cached_report
+    v1 = tone(tmp_path / "v1.wav", 1.0)
+    sb = {"video_id": "V", "scenes": [{"narration": "hi", "visual": {"type": "title"}}]}
+    m1 = build_manifest(sb, [v1], tmp_path, "auto", True, True)
+    assert m1 == build_manifest(sb, [v1], tmp_path, "auto", True, True)                    # deterministic
+    assert m1["manifest_sha256"] != build_manifest(sb | {"x": 1}, [v1], tmp_path, "auto", True, True)["manifest_sha256"]
+    tone(tmp_path / "v1.wav", 1.0, freq=300)
+    assert m1["manifest_sha256"] != build_manifest(sb, [v1], tmp_path, "auto", True, True)["manifest_sha256"]
+    m = build_manifest(sb, [v1], tmp_path, "auto", True, True)
+    out = tmp_path / "out.mp4"
+    out.write_bytes(b"x" * 100)
+    (tmp_path / "timings.json").write_text(json.dumps({"qc": {"ok": True, "engine": "hyperframes"}}))
+    (tmp_path / "render_manifest.json").write_text(json.dumps({**m, "qc_ok": False}))
+    assert cached_report(m, tmp_path, out) is None                                          # failed QC never reused
+    (tmp_path / "render_manifest.json").write_text(json.dumps({**m, "qc_ok": True}))
+    assert cached_report(m, tmp_path, out)["cached"] is True

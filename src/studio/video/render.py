@@ -270,10 +270,17 @@ def draw_captions(d, cap: dict | None, t: float, accent) -> None:
 def render(storyboard: dict, scene_audio: list[Path], workdir: Path, out_mp4: Path,
            preset: str = "veryfast", music: bool = True, sfx: bool = True,
            sfx_dir: Path | None = None, music_dir: Path | None = None, engine: str = "pillow") -> dict:
-    """engine: pillow | hyperframes | auto (hyperframes, falling back to pillow)."""
+    """engine: pillow | hyperframes | auto (hyperframes, falling back to pillow).
+    Reproducible: render_manifest.json hashes every input; an identical manifest whose earlier QC passed
+    reuses the existing output instead of re-rendering (video-level cache)."""
     from studio.editorial.storyboard import normalize
+    from studio.video.manifest import build_manifest, cached_report
     workdir.mkdir(parents=True, exist_ok=True)
     storyboard = normalize(storyboard)
+    manifest = build_manifest(storyboard, scene_audio, workdir, engine, music, sfx)
+    hit = cached_report(manifest, workdir, out_mp4)
+    if hit:
+        return hit
     long_ = storyboard.get("format") == "long"
     # Pillow cannot shape Tamil script and has no 16:9 layout: those need HyperFrames
     hf_only = long_ or storyboard.get("language", "en") != "en" or any(
@@ -320,6 +327,7 @@ def render(storyboard: dict, scene_audio: list[Path], workdir: Path, out_mp4: Pa
             if report["ok"]:
                 report = full_qc(report, out_mp4, workdir, norm_wav, long_, speech_meta, caps)
                 (workdir / "timings.json").write_text(json.dumps({"timings": timings, "qc": report}, indent=1))
+                _save_manifest(manifest, report, workdir)
                 return report
             fallback_reason = f"hyperframes QC failed: {report['checks']}"
         except Exception as ex:  # noqa: BLE001 - fall back to the Pillow renderer
@@ -395,7 +403,13 @@ def render(storyboard: dict, scene_audio: list[Path], workdir: Path, out_mp4: Pa
         report["fallback_reason"] = fallback_reason
     report = full_qc(report, out_mp4, workdir, norm_wav, False, speech_meta, caps)
     (workdir / "timings.json").write_text(json.dumps({"timings": timings, "qc": report}, indent=1))
+    _save_manifest(manifest, report, workdir)
     return report
+
+
+def _save_manifest(manifest: dict, report: dict, workdir: Path) -> None:
+    (workdir / "render_manifest.json").write_text(json.dumps({**manifest, "qc_ok": bool(report.get("ok")),
+                                                               "engine_used": report.get("engine")}, indent=1))
 
 
 def _captions(storyboard: dict, scenes: list[dict], timings: list[dict], workdir: Path) -> tuple[list[dict], dict]:
