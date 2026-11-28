@@ -49,6 +49,10 @@ def validate_research(r: dict, today: date, history: list[dict], dedupe_days: in
             e.append(f"fact not backed by a listed source: {f.get('claim', '')[:60]}")
         if f.get("confidence") == "low":
             w.append(f"low-confidence fact should not be used: {f.get('claim', '')[:60]}")
+    from studio.editorial.policy import research_contract, topic_gate
+    e += topic_gate(r)
+    ce, cw = research_contract(r)
+    e, w = e + ce, w + cw
     cutoff = today - timedelta(days=dedupe_days)
     for h in history:
         if h.get("topic_key") == r["topic_key"] and h.get("researched_at", "")[:10] >= cutoff.isoformat():

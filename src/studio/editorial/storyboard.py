@@ -309,7 +309,14 @@ def validate_long(sb: dict, require_sources: bool = True) -> tuple[list[str], li
 
 
 def validate_storyboard(sb: dict, require_sources: bool = True) -> tuple[list[str], list[str]]:
-    """Returns (errors, warnings). Errors block rendering."""
+    """Returns (errors, warnings). Errors block rendering. Adds the editorial scene contract (policy.py)."""
+    from studio.editorial.policy import scene_contract
+    e, w = _validate_format(sb, require_sources)
+    ce, cw = scene_contract(sb)
+    return e + ce, w + cw
+
+
+def _validate_format(sb: dict, require_sources: bool = True) -> tuple[list[str], list[str]]:
     if is_long(sb):
         return validate_long(sb, require_sources)
     e, w = [], []
