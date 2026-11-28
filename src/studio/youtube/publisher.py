@@ -137,7 +137,7 @@ class Publisher:
                 resp = self.yt.upload(UploadRequest(
                     path=local, title=rec.title, description=rec.description, tags=rec.tag_list,
                     category_id=self.s.youtube_category_id, publish_at=publish_at,
-                    language=self.s.channel_language))
+                    language=self.s.channel_language, synthetic=_synthetic(rec, self.s)))
             except Exception as e:  # unknown whether YouTube created the video -> human check
                 return self._fail(rec, State.NEEDS_MANUAL_REVIEW, f"upload failed: {e}")
 
@@ -157,3 +157,13 @@ class Publisher:
             for p in tmp.glob("*"):
                 p.unlink(missing_ok=True)
             tmp.rmdir()
+
+
+def _synthetic(rec, settings) -> bool:
+    """Disclosure follows the approved snapshot (quality_report.youtube.synthetic), else the setting."""
+    import json
+    try:
+        yt = (json.loads(rec.quality_report or "{}") or {}).get("youtube") or {}
+    except ValueError:
+        yt = {}
+    return bool(yt.get("synthetic", getattr(settings, "synthetic_media", False)))

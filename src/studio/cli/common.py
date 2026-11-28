@@ -156,7 +156,11 @@ def _theme_today(ctx: Ctx) -> dict:
                     if not is_long(h.get("video_id", "")) and language_of(h.get("video_id", "")) == "en"]
         except Exception:
             hist = []
-        th["recent_lanes"] = [h.get("theme") or _lane_of(h.get("category", "")) for h in hist[-2:]]
+        try:     # the researcher's own lane per video (bug fix: ResearchHistory never had a theme column)
+            lanes = {r["video_id"]: r["text"] for r in ctx.store.rows("ContentMemory") if r.get("kind") == "lane"}
+        except Exception:
+            lanes = {}
+        th["recent_lanes"] = [lanes.get(h.get("video_id")) or _lane_of(h.get("category", "")) for h in hist[-2:]]
     return th
 
 

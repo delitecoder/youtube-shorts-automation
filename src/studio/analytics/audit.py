@@ -49,12 +49,10 @@ def collect(yta, yt, today: date, pipeline_ids: set[str]) -> dict:
                     dimensions="video", sort="-views", maxResults=50))
     titles = {}
     ids = [v["video"] for v in vids]
-    for i in range(0, len(ids), 50):
+    for i in range(0, len(ids), 50):         # one videos.list per batch (was two: 2x quota for the same data)
         for it in yt.svc.videos().list(part="snippet,contentDetails", id=",".join(ids[i:i + 50])).execute().get("items", []):
-            titles[it["id"]] = {"title": it["snippet"]["title"], "published": it["snippet"]["publishedAt"][:10]}
-    for i in range(0, len(ids), 50):
-        for it in yt.svc.videos().list(part="contentDetails", id=",".join(ids[i:i + 50])).execute().get("items", []):
-            titles.setdefault(it["id"], {})["format"] = "long" if _secs(it["contentDetails"].get("duration", "")) > 180 else "short"
+            titles[it["id"]] = {"title": it["snippet"]["title"], "published": it["snippet"]["publishedAt"][:10],
+                                "format": "long" if _secs(it["contentDetails"].get("duration", "")) > 180 else "short"}
     for v in vids:
         v.update(titles.get(v["video"], {}))
         v["ours"] = v["video"] in pipeline_ids

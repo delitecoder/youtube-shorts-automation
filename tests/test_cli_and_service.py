@@ -53,6 +53,7 @@ def test_generated_flow_dry_run(tmp_path):
     r = run(rt, "submit", "--video-id", vid, "--metadata", str(tmp_path / "m.json"),
             "--review", str(tmp_path / "rev.json"))
     assert r["ok"] and r["state"] == "AWAITING_APPROVAL"
+    assert r["memory"]["ok"] and r["memory"]["memory_rows"] >= 4          # learning loop recorded this video
     actions = (rt / "dry_run_actions.jsonl").read_text()
     assert "02_Generated" in actions and "03_Awaiting_Approval" in actions
     # after the English submit the next action is its Tamil version (rules.md §1.6), not a new item

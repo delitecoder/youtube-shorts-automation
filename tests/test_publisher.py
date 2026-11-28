@@ -186,3 +186,28 @@ def test_two_accepted_yes_entries_rejected(settings, store, t0):
 
 def test_unknown_video_rejected(settings, store, t0):
     assert make(settings, store, t0).publish("VIDEO-20261124-099").status == "rejected"
+
+
+def test_cloud_run_upload_declares_synthetic_media_like_apps_script():
+    from studio.youtube.client import UploadRequest, build_body
+    from pathlib import Path
+    r = UploadRequest(path=Path("x.mp4"), title="t", description="d", tags=[], category_id="27", publish_at=None,
+                      synthetic=True)
+    assert build_body(r)["status"]["containsSyntheticMedia"] is True
+    assert "containsSyntheticMedia" not in build_body(UploadRequest(path=Path("x.mp4"), title="t", description="d",
+                                                                    tags=[], category_id="27", publish_at=None))["status"]
+
+
+def test_long_videos_get_watch_links_not_shorts_links():
+    from studio.cli.commands.publishing import _watch_url
+    assert _watch_url("VIDEO-20261128-101", "abc") == "https://www.youtube.com/watch?v=abc"
+    assert _watch_url("VIDEO-20261128-001", "abc") == "https://youtube.com/shorts/abc"
+
+
+def test_fit_json_never_produces_invalid_json():
+    import json
+    from studio.cli.common import fit_json
+    big = {"images": [{"d": "x" * 500} for _ in range(300)], "review": {"verdict": "pass"}}
+    s = fit_json(big, 45000)
+    d = json.loads(s)
+    assert len(s) <= 45000 and d["review"]["verdict"] == "pass" and d["_trimmed"]

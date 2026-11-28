@@ -1,0 +1,28 @@
+# Subject playlists (learning journeys). English and Tamil are separate playlists. A playlist is created
+# only once a subject has >= min_videos videos (no single-video playlists); the Apps Script finds playlists
+# by the hidden description marker '#studio-playlist:<key>-<lang>', never by title alone.
+min_videos: 2
+subjects:
+  system-design:
+    categories: [system design]
+    title: {en: "System Design, Explained Simply", ta: "System Design – தமிழில் எளிமையாக"}
+    description: {en: "How real systems scale: caches, queues, databases and load balancers, one idea at a time.",
+                  ta: "பெரிய சிஸ்டம்கள் எப்படி scale ஆகின்றன: cache, queue, database, load balancer – ஒவ்வொன்றாக."}
+  ai-ml:
+    categories: [artificial intelligence, machine learning]
+    title: {en: "How AI Actually Works", ta: "AI உண்மையில் எப்படி வேலை செய்கிறது"}
+    description: {en: "The mechanisms behind modern AI, without hype.", ta: "Hype இல்லாமல், நவீன AI-யின் உள் இயக்கம்."}
+  programming:
+    categories: [programming, software engineering, educational technology, general education]
+    title: {en: "Programming Concepts in 60 Seconds", ta: "Programming கருத்துகள் – ஒரு நிமிடத்தில்"}
+    description: {en: "Core programming and software engineering ideas, short and visual.",
+                  ta: "Programming மற்றும் software engineering அடிப்படைகள், சுருக்கமாக."}
+  tech-stories:
+    categories: [tech stories, technology news, emerging technology, motivation]
+    title: {en: "Tech Stories & What They Teach", ta: "Tech கதைகள் – கற்றுக்கொள்ள"}
+    description: {en: "True stories from technology and the engineering lesson inside each.",
+                  ta: "தொழில்நுட்ப உலகின் உண்மைக் கதைகள் மற்றும் அவற்றின் பாடம்."}
+  security:
+    categories: [cybersecurity]
+    title: {en: "Cybersecurity Explained", ta: "Cybersecurity – தமிழில்"}
+    description: {en: "How attacks work and how systems defend.", ta: "தாக்குதல்கள் எப்படி நடக்கின்றன, எப்படி தடுப்பது."}

@@ -2,6 +2,18 @@
 
 The owner updates the script; Claude never pushes it. Newest first. Each entry = one SCRIPT_VERSION.
 
+## 2026.11.28-1
+- **Playlists:** after an approved upload the video is added to its subject playlist (English and
+  Tamil separate). Playlists are found by a hidden marker in their description, so nothing is
+  duplicated; a new playlist is only created once a subject has at least two videos, and the earlier
+  video is added too. A playlist problem never fails the upload. Uses the existing YouTube service
+  (no new permission).
+- **Fix:** the Cloud Run path now keeps an approved video retryable when the publisher answers
+  "dry run" or "disabled" (it used to be marked done forever).
+- **Fix:** default YouTube category is Education (27), matching the pipeline settings.
+- **Approval email:** a "Checks" line shows video/audio QC, loudness, caption timing (from the real
+  speech or estimated), licence status and the planned playlist.
+
 ## 2026.11.26-1
 - **Thumbnails:** each video comes with a designed thumbnail (story scene + big words). After the
   upload the script sets it on YouTube (retried each run for up to 48 h, because YouTube accepts

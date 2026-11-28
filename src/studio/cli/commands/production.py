@@ -17,7 +17,7 @@ import shutil
 import subprocess
 import sys
 
-from studio.cli.common import (LIBRARY, WORK, load_json, out)
+from studio.cli.common import (fit_json, LIBRARY, WORK, load_json, out)
 
 
 def cmd_validate_storyboard(ctx: Ctx, a) -> int:
@@ -72,6 +72,14 @@ def cmd_render(ctx: Ctx, a) -> int:
         return 2
     report |= {"voice": provider, "voice_fallbacks": fallbacks}
     if not report["ok"]:
+        from studio.notifications.templates import notify
+        a_qc, v_qc = report.get("audio_qc") or {}, report.get("video_qc") or {}
+        event = "audio_qc_failed" if a_qc and not a_qc.get("pass") and v_qc.get("pass", True) else "render_failed"
+        try:
+            notify(ctx.store, event, rec.video_id, items={"video critical": "; ".join(v_qc.get("critical", [])) or "-",
+                                                          "audio critical": "; ".join(a_qc.get("critical", [])) or "-"})
+        except Exception:  # noqa: BLE001 - a notification never hides the real error
+            pass
         out({"ok": False, "qc": report})
         return 2
     rec = ctx.store.transition(rec.video_id, State.GENERATING, State.QUALITY_CHECK, rec.version,
@@ -79,7 +87,7 @@ def cmd_render(ctx: Ctx, a) -> int:
                                height="1080" if long_ else "1920",
                                hook=sb["hooks"][sb["chosen_hook"]],
                                references=json.dumps(sb.get("references", [])),
-                               quality_report=json.dumps({"render_qc": report}))
+                               quality_report=fit_json({"render_qc": report}))
     out({"ok": True, "video": str(wd / f"{rec.video_id}.mp4"), "voice": provider,
          "engine": report.get("engine"), "fallback_reason": report.get("fallback_reason", ""),
          "fallbacks": fallbacks, "qc": {k: report[k] for k in ("ok", "duration", "lufs")},

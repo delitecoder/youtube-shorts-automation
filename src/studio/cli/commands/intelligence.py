@@ -48,6 +48,12 @@ def cmd_novelty(ctx, a) -> int:
 def cmd_experiment(ctx, a) -> int:
     if a.action == "evaluate":
         res = engine.evaluate(ctx.store)
+        from studio.notifications.templates import notify
+        for r in res:
+            if r.get("status") == "concluded":
+                notify(ctx.store, "experiment_results", exp_id=r["exp_id"], text=r["conclusion"],
+                       items={"variable": r["dimension"], "control": r["control"], "treatment": r["treatment"],
+                              "n": f"{r['n_control']}/{r['n_treatment']}", "CI": f"{r['ci_low']}..{r['ci_high']}"})
         out({"ok": True, "evaluated": [{k: r.get(k) for k in ("exp_id", "status", "n_control", "n_treatment",
                                                               "effect", "ci_low", "ci_high", "conclusion")} for r in res]})
         return 0

@@ -34,6 +34,7 @@ class UploadRequest:
     publish_at: str | None        # RFC3339 UTC, or None to stay private
     language: str = "en"
     made_for_kids: bool = False
+    synthetic: bool = False        # AI-altered/synthetic content disclosure (same as the Apps Script path)
 
 
 def build_body(req: UploadRequest) -> dict:
@@ -41,6 +42,8 @@ def build_body(req: UploadRequest) -> dict:
               "embeddable": True, "license": "youtube"}
     if req.publish_at:
         status["publishAt"] = req.publish_at
+    if req.synthetic:
+        status["containsSyntheticMedia"] = True
     return {
         "snippet": {"title": req.title, "description": req.description, "tags": req.tags,
                     "categoryId": req.category_id, "defaultLanguage": req.language,

@@ -75,6 +75,12 @@ def cmd_submit(ctx: Ctx, a) -> int:
     qr["youtube"] = {"category_id": str(meta.get("category_id", ctx.s.youtube_category_id)), "made_for_kids": False,
                      "synthetic": ctx.s.synthetic_media,
                      "language": lang, "embeddable": True, "public_stats": True}
+    if sb.get("category"):                            # VideoRecord has no category column (Apps Script contract)
+        from studio.playlists.planner import plan as playlist_plan
+        pl = playlist_plan(ctx.store, rec.video_id, sb["category"])
+        if pl:
+            qr["playlist"] = pl                        # executed by the Apps Script after the approved upload
+    qr["checks"] = _checks_summary(rec.video_id, qr)
     cp = WORK / rec.video_id / "image_credits.json"
     if cp.exists():
         qr["images"] = [{k: e.get(k) for k in ("file", "creator", "license", "page_url", "requires_permission",
@@ -248,7 +254,7 @@ def cmd_reconcile(ctx: Ctx, a) -> int:
                     from studio.youtube.promotion import bluesky
                     try:
                         uri = bluesky.post(ctx.s.bluesky_handle, r2.title,
-                                           f"https://youtube.com/shorts/{rec.youtube_video_id}",
+                                           _watch_url(rec.video_id, rec.youtube_video_id),
                                            [t for t in r2.tag_list][:3])
                         done[-1]["bluesky"] = uri
                     except Exception as e:  # noqa: BLE001
@@ -265,7 +271,7 @@ def cmd_reconcile(ctx: Ctx, a) -> int:
 def cmd_reddit_drafts(ctx: Ctx, a) -> int:
     from studio.youtube.promotion import reddit_drafts
     rec = ctx.store.get(a.video_id)
-    md = reddit_drafts.render(rec.video_id, f"https://youtube.com/shorts/{rec.youtube_video_id or 'PENDING'}",
+    md = reddit_drafts.render(rec.video_id, _watch_url(rec.video_id, rec.youtube_video_id or "PENDING"),
                               reddit_drafts.load(a.file))
     p = WORK / rec.video_id / f"{rec.video_id}_reddit_drafts.md"
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -283,3 +289,25 @@ def register(sub) -> None:
     p = sub.add_parser("restore"); p.add_argument("--video-id", required=True)
     sub.add_parser("reconcile")
     p = sub.add_parser("reddit-drafts"); p.add_argument("--video-id", required=True); p.add_argument("--file", required=True)
+
+
+def _watch_url(video_id: str, yt_id: str) -> str:
+    """Shorts get /shorts/ links; long videos the normal watch URL (bug: long videos got /shorts/)."""
+    return f"https://www.youtube.com/watch?v={yt_id}" if is_long(video_id) else f"https://youtube.com/shorts/{yt_id}"
+
+
+def _checks_summary(video_id: str, qr: dict) -> dict:
+    """One-line QC/licence/playlist status for the approval email (Apps Script shows it as-is)."""
+    tj = WORK / video_id / "timings.json"
+    rq = json.loads(tj.read_text()).get("qc", {}) if tj.exists() else {}
+    a, v = rq.get("audio_qc") or {}, rq.get("video_qc") or {}
+    am = a.get("measured", {})
+    attributions = rq.get("attributions", [])
+    unlicensed = [x.get("file") for x in attributions if not x.get("license")]
+    cap = (am.get("captions") or {}).get("timing", "unknown")
+    return {"video_qc": "pass" if v.get("pass") else ("FAIL" if v else "not run"),
+            "audio_qc": "pass" if a.get("pass") else ("FAIL" if a else "not run"),
+            "loudness": f"{am.get('integrated_lufs')} LUFS / {am.get('true_peak_dbtp')} dBTP" if am else "",
+            "captions": cap, "asr_wer": am.get("asr_wer"),
+            "licences": "all assets licensed" if not unlicensed else f"MISSING licence: {unlicensed[:3]}",
+            "playlist": (qr.get("playlist") or {}).get("title", "none")}

@@ -128,3 +128,28 @@ def test_clear_effect_with_enough_samples_concludes_and_recommends(store):
     assert rec["choice"] == r["treatment"] and rec["evidence"] == r["exp_id"]
     nxt = engine.plan(store, "VIDEO-20270101-001")
     assert nxt["choices"][r["dimension"]] == r["treatment"] or nxt["mode"] != "proven"
+
+
+# ---------------- playlists
+def test_playlist_plan_needs_two_videos_separates_languages_and_backfills(store):
+    from studio.playlists import planner
+    p1 = planner.plan(store, "VIDEO-20261128-001", "system design")
+    assert p1["key"] == "system-design-en" and p1["create"] is False and p1["backfill"] == []
+    store.append("ProductionManifest", {"video_id": "VIDEO-20261128-001", "lang": "en", "topic_category": "system design"})
+    store.append("PublishedVideos", {"video_id": "VIDEO-20261128-001", "youtube_video_id": "yt1"})
+    p2 = planner.plan(store, "VIDEO-20261129-001", "System Design")
+    assert p2["create"] is True and p2["backfill"] == ["yt1"]
+    ta = planner.plan(store, "VIDEO-20261129-051", "system design")
+    assert ta["key"] == "system-design-ta" and ta["create"] is False and "தமிழ" in ta["title"]
+    assert planner.plan(store, "VIDEO-20261129-001", "cooking") is None
+
+
+# ---------------- notifications
+def test_notification_templates_escape_and_queue(store):
+    from studio.notifications.templates import EVENTS, notify, render
+    for ev in EVENTS:
+        m = render(ev, video_id="VIDEO-1", exp_id="EXP-1", items={"a": "<b>x</b>"})
+        assert m["subject"] and m["text"] and "<b>x</b>" not in m["html"] and "&lt;b&gt;" in m["html"]
+    notify(store, "audio_qc_failed", "VIDEO-1", items={"audio critical": "music masks speech"})
+    row = store.rows("ErrorLog")[-1]
+    assert row["severity"] == "ERROR" and "music masks speech" in row["message"] and row["component"] == "notify:audio_qc_failed"

@@ -153,6 +153,10 @@ def cmd_record_research(ctx: Ctx, a) -> int:
                                          "topic": r["topic"], "topic_key": r["topic_key"],
                                          "category": r["category"], "sources": json.dumps(r["sources"]),
                                          "summary": r["angle"][:500]})
+    lane = r.get("theme") or r.get("lane")
+    if lane:   # ResearchHistory has no theme column (Apps Script contract): the lane lives in ContentMemory
+        ctx.store.append("ContentMemory", {"recorded_at": iso(utcnow()), "video_id": a.video_id, "kind": "lane",
+                                           "key": "lane", "fingerprint": "", "text": str(lane)})
     if rec.state == State.DISCOVERED:
         ctx.store.transition(a.video_id, State.DISCOVERED, State.RESEARCHING, rec.version)
     out({"ok": True, "warnings": warns})

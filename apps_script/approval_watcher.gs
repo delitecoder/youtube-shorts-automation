@@ -23,7 +23,7 @@
 
 // Bump on every change and add an entry to apps_script/CHANGELOG.md: the daily run compares this
 // with the deployed version and emails the approver when an update is needed.
-var SCRIPT_VERSION = '2026.11.26-1';
+var SCRIPT_VERSION = '2026.11.28-1';
 var TTL_HOURS = 24;
 var SLOT_MARGIN_MIN = 15;            // approvals must arrive this long before the publish slot
 var MAX_UPLOAD_BYTES = 45 * 1024 * 1024;   // Apps Script blob limit: bigger files use the chunked upload
@@ -217,6 +217,10 @@ function sendRequests_(ss) {
       '<p style="margin:0 0 10px"><b>Duration:</b> ' + esc_(r.duration_s) + ' s · <b>Source:</b> ' + esc_(r.source_type) +
       (review.score ? ' · <b>Review score:</b> ' + esc_(review.score) + '/10' : '') + '</p>' +
       '<p style="margin:0 0 10px"><b>Publishes:</b> ' + ist_(r.proposed_publish_at) + '</p>' +
+      (qr.checks ? '<p style="margin:0 0 10px;font-size:13px"><b>Checks:</b> video QC ' + esc_(qr.checks.video_qc) +
+        ' · audio QC ' + esc_(qr.checks.audio_qc) + (qr.checks.loudness ? ' (' + esc_(qr.checks.loudness) + ')' : '') +
+        ' · captions ' + esc_(qr.checks.captions) + ' · ' + esc_(qr.checks.licences) +
+        ' · playlist: ' + esc_(qr.checks.playlist) + '</p>' : '') +
       '<p><a href="' + esc_(r.preview_url) + '" style="background:#2563eb;color:#fff;padding:12px 20px;border-radius:10px;' +
       'text-decoration:none;font-weight:bold;display:inline-block">▶ Watch the preview</a></p>' +
       '<div style="clear:both"></div>' +
@@ -256,9 +260,10 @@ function sendRequests_(ss) {
     props_().setProperty('req:' + r.video_id, JSON.stringify({
       drive_file_id: r.drive_file_id, sha256: r.sha256, title: r.title, description: r.description,
       tags: r.tags, publish_at: r.proposed_publish_at, thread_id: msg.getThread().getId(),
-      category_id: String((qr.youtube || {}).category_id || '28'),
+      category_id: String((qr.youtube || {}).category_id || '27'),
       language: String((qr.youtube || {}).language || 'en'),
       synthetic: (qr.youtube || {}).synthetic === true, thumbnail_file_id: qr.thumbnail_file_id || '',
+      playlist: qr.playlist || null,
       request_message_id: msg.getId(), requested_at: sentAt }));
     var ok = casUpdate_(ss, r.video_id, 'AWAITING_APPROVAL', r.version, {
       approval_thread_id: msg.getThread().getId(), approval_request_message_id: msg.getId(),
@@ -469,8 +474,11 @@ function callPublisher_(ss) {
       method: 'post', contentType: 'application/json', payload: body, muteHttpExceptions: true,
       headers: { 'X-YTA-Timestamp': ts, 'X-YTA-Nonce': nonce, 'X-YTA-Signature': sig } });
     var code = resp.getResponseCode();
-    var status = code === 200 ? 'done' : 'error ' + code;
     var result = {}; try { result = JSON.parse(resp.getContentText()); } catch (e) {}
+    // 'done' only when the publisher actually uploaded; dry_run/disabled/duplicate answers keep the item
+    // retryable once the owner turns the flags on (was: any 200 marked done forever).
+    var finished = code === 200 && (result.status === 'scheduled' || result.status === 'uploaded_private');
+    var status = finished ? 'done' : (code === 200 ? 'pending ' + (result.status || 'unknown') : 'error ' + code);
     if (code === 200 && (result.status === 'scheduled' || result.status === 'uploaded_private')) {
       archiveVideo_(ss, r);
     }
@@ -532,7 +540,7 @@ function uploadApproved_(ss) {
       if (sn.synthetic || props_().getProperty('SYNTHETIC_MEDIA') === 'true') status.containsSyntheticMedia = true;
       if (publishAt) status.publishAt = publishAt;
       var resource = { snippet: { title: sn.title, description: sn.description, tags: tags,
-        categoryId: sn.category_id || '28', defaultLanguage: sn.language || 'en', defaultAudioLanguage: sn.language || 'en' }, status: status,
+        categoryId: sn.category_id || '27', defaultLanguage: sn.language || 'en', defaultAudioLanguage: sn.language || 'en' }, status: status,
         // since 2026-11-03 YouTube no longer assumes "no paid placement": declare it explicitly
         paidProductPlacementDetails: { hasPaidProductPlacement: false } };
       if (file.getSize() > MAX_UPLOAD_BYTES) {
@@ -568,8 +576,38 @@ function uploaded_(ss, vid, sn, cur, ytId, publishAt) {
   append_(ss, 'PublishedVideos', { recorded_at: nowIso_(), video_id: vid, youtube_video_id: ytId, privacy: 'private',
     publish_at: publishAt || '', title: sn.title, sha256: sn.sha256, status: publishAt ? 'scheduled' : 'uploaded_private' });
   archiveVideo_(ss, { video_id: vid, drive_file_id: sn.drive_file_id });
+  if (sn.playlist) {                       // planned by the pipeline; a playlist problem never fails the upload
+    try { addToPlaylist_(ss, vid, ytId, sn.playlist); } catch (e) {
+      logError_(ss, vid, 'playlists', 'playlist step skipped: ' + e, 'WARNING'); }
+  }
   logError_(ss, vid, 'uploader', 'Uploaded ✓ https://youtu.be/' + ytId + (publishAt ? ' — goes public ' + ist_(publishAt)
     : ' — private (PUBLICATION_ENABLED is off)'), 'INFO');
+}
+
+/** Idempotent playlist placement. pl = {key, title, description, lang, create, backfill:[youtube ids]}.
+ * Finds the channel playlist carrying the marker '#studio-playlist:<key>' (never by title alone), creates
+ * it only when the pipeline allowed it (>= 2 videos in that subject), and adds each video once. */
+function addToPlaylist_(ss, vid, ytId, pl) {
+  var marker = '#studio-playlist:' + pl.key;
+  var found = null, token = '';
+  do {
+    var page = YouTube.Playlists.list('snippet', { mine: true, maxResults: 50, pageToken: token || undefined });
+    (page.items || []).forEach(function (p) { if (!found && (p.snippet.description || '').indexOf(marker) >= 0) found = p; });
+    token = page.nextPageToken;
+  } while (!found && token);
+  if (!found) {
+    if (!pl.create) return;                         // single-video subjects wait for a second video
+    found = YouTube.Playlists.insert({ snippet: { title: pl.title, description: pl.description + '\n\n' + marker,
+                                                  defaultLanguage: pl.lang || 'en' },
+                                       status: { privacyStatus: 'public' } }, 'snippet,status');
+    logError_(ss, vid, 'playlists', 'Created playlist "' + pl.title + '"', 'INFO');
+  }
+  [ytId].concat(pl.backfill || []).forEach(function (id) {
+    var have = YouTube.PlaylistItems.list('id', { playlistId: found.id, videoId: id, maxResults: 1 });
+    if ((have.items || []).length) return;
+    YouTube.PlaylistItems.insert({ snippet: { playlistId: found.id, resourceId: { kind: 'youtube#video', videoId: id } } },
+                                 'snippet');
+  });
 }
 
 function driveMeta_(fileId) {
