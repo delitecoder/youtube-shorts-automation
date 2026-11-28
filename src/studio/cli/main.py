@@ -4,12 +4,13 @@ from __future__ import annotations
 import argparse
 import sys
 
-from studio.cli.commands import analytics, assets, intelligence, planning, production, publishing, setup, state
+from studio.cli.commands import (analytics, assets, intelligence, lifecycle, planning, production, publishing, setup,
+                                 state)
 from studio.cli.common import out
 from studio.core.google_auth import MissingCredentials
 from studio.orchestration.context import Ctx
 
-GROUPS = (setup, planning, production, assets, publishing, analytics, state, intelligence)
+GROUPS = (setup, planning, production, assets, publishing, analytics, state, intelligence, lifecycle)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -29,6 +30,9 @@ def handler(cmd: str):
 
 
 def main(argv=None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] in lifecycle.ALIASES:          # contract names -> existing commands (same behaviour)
+        argv[0] = lifecycle.ALIASES[argv[0]]
     a = build_parser().parse_args(argv)
     try:
         return handler(a.cmd)(Ctx(), a)

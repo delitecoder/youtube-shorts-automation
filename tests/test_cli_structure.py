@@ -92,3 +92,17 @@ def test_plan_writes_style_and_experiment_into_storyboard(tmp_path):
     assert r2["policy"]["reused"] is True                      # idempotent per video
     code, r3 = _run(tmp_path, "experiment", "list")
     assert r3["ok"]
+
+
+def test_contract_command_names_exist_and_approve_cannot_approve(tmp_path):
+    from studio.cli.commands.lifecycle import ALIASES
+    names = set(_commands()) | set(ALIASES)
+    for c in ("doctor", "research", "plan", "produce", "render", "audio", "qc", "approve", "publish", "analytics",
+              "experiment", "playlist", "report", "resume"):
+        assert c in names, c
+    code, r = _run(tmp_path, "report")
+    assert r["ok"] and "videos_by_state" in r
+    import inspect
+    from studio.cli.commands import lifecycle
+    src = inspect.getsource(lifecycle.cmd_approve)
+    assert "transition" not in src and "update_fields" not in src          # read-only by construction

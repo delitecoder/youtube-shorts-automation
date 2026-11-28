@@ -51,10 +51,19 @@ Rules:
 - Do not copy wording from other creators' videos or scripts; collect facts, not phrasing.
 - Fetch as little as needed; do not paste whole pages back.
 
-Return ONLY this JSON (no prose):
-{"topic": "...", "topic_key": "kebab-case", "category": "<allowed category>", "theme": "<theme key>",
- "angle": "one-sentence story angle", "source_type": "research|drive_document",
- "why_now": "...",
- "sources": [{"title": "...", "url": "https://...", "publisher": "...", "published": "YYYY-MM-DD"}],
- "facts": [{"claim": "...", "source_urls": ["https://..."], "confidence": "high|medium|low"}]}
+Editorial gate (rules.md §1-§2, enforced by `studio research`): technology education only. Entertainment,
+celebrity, trailer, sports or politics topics are rejected unless you state a substantial `tech_lesson`
+(>= 12 words naming the technical concept). Prefer PRIMARY sources (official docs, papers, repos, engineering
+blogs). Give every fact an id, a status and, for high-impact or disputed claims, `"high_impact": true` (the
+research-verifier must sign them off before scripting). Never invent numbers, quotes, dates or benchmarks.
+
+Return ONLY this JSON (no prose), schema 2:
+{"schema": 2, "topic": "...", "topic_key": "kebab-case", "category": "<allowed category>", "theme": "<lane key>",
+ "domain": "<one of config/app.yaml editorial.allowed_domains>", "angle": "one-sentence story angle",
+ "source_type": "research|drive_document", "why_now": "...", "tech_lesson": "(only for borderline topics)",
+ "audience_terms": ["..."],
+ "sources": [{"title": "...", "url": "https://...", "publisher": "...", "published": "YYYY-MM-DD",
+              "accessed": "YYYY-MM-DD"}],
+ "facts": [{"id": "f1", "claim": "...", "source_urls": ["https://..."], "confidence": "high|medium|low",
+            "status": "verified|estimate|opinion|speculation", "high_impact": false}]}
 Keep it under ~600 words.
