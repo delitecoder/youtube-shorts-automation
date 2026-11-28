@@ -2,5 +2,27 @@
   "model": "opus",
   "env": {
     "PYTHONPATH": "src"
+  },
+  "hooks": {
+    "SessionStart": [
+      {"hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/scripts/hooks/run.py\" SessionStart", "timeout": 90}]}
+    ],
+    "PreToolUse": [
+      {"matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit",
+       "hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/scripts/hooks/run.py\" PreToolUse", "timeout": 15}]}
+    ],
+    "PostToolUse": [
+      {"matcher": "Bash",
+       "hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/scripts/hooks/run.py\" PostToolUse", "timeout": 15}]}
+    ],
+    "PreCompact": [
+      {"hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/scripts/hooks/run.py\" PreCompact", "timeout": 90}]}
+    ],
+    "SubagentStop": [
+      {"hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/scripts/hooks/run.py\" SubagentStop", "timeout": 15}]}
+    ],
+    "Stop": [
+      {"hooks": [{"type": "command", "command": "python \"$CLAUDE_PROJECT_DIR/scripts/hooks/run.py\" Stop", "timeout": 15}]}
+    ]
   }
 }
