@@ -1,0 +1,17 @@
+# Experimentation policy (studio.experimentation).
+allocation: {proven: 0.7, variation: 0.2, exploration: 0.1}
+min_n_per_arm: 5
+confidence: 0.9
+primary_metric: avg_view_pct     # quality-of-attention metric; views are secondary
+secondary_metrics: [views, ctr, subs]
+separate_by: [format, lang]
+dimensions:
+  story_structure: [problem_mechanism_solution, how_it_works, inside_architecture, investigation,
+                    case_study, myth_vs_reality, comparison, timeline, step_by_step, evidence_future]
+  hook_type: [question, surprising_fact, failure_story, demo_first, stakes]
+  visual_approach: [motion_graphics_2d, animated_architecture, three_d, data_viz, story_world,
+                    kinetic_typography, licensed_imagery, simulation, mixed]
+  pacing: [calm, medium, brisk]
+  music_profile: [documentary, tech_ambient, minimal_electronic, investigation, inspirational, calm_edu]
+  voice_profile: [conversational, documentary, energetic, calm]
+  sfx_density: [minimal, moderate]

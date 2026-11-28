@@ -1,0 +1,29 @@
+# Audio production defaults (studio.audio). Starting points, measured and reported per video.
+master:
+  integrated_lufs: -14.0
+  true_peak_dbtp: -1.0
+  lra_max: 11.0
+  sample_rate: 48000
+  channels: 2
+stems: [dialogue, music, sfx, ambience]
+dialogue:
+  highpass_hz: 80
+  deess: true
+  compressor: {threshold_db: -20, ratio: 3, attack_ms: 10, release_ms: 120}
+music:
+  base_gain_db: -16
+  duck: {threshold: 0.02, ratio: 10, attack_ms: 20, release_ms: 450}
+  speech_band_notch_db: -3        # dip 1–4 kHz in music under speech
+  crossfade_s: 1.5
+sfx:
+  base_gain_db: -10
+  require_reason: true            # every cue must carry a reason tied to a scene event
+qc:
+  max_silence_s: 1.2
+  clipping_samples_max: 0
+  min_speech_to_music_db: 10
+  max_wer: 0.15                   # ASR word error vs script (pronunciation/content check)
+  caption_max_offset_s: 0.25
+tts:
+  providers: [google, kokoro, piper]
+  cache: true

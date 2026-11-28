@@ -1,0 +1,20 @@
+# Measured-environment limits (studio.resource_manager). Default host: CPU-only, 15 GB RAM, no GPU.
+memory:
+  app_working_set_gb: 10.5        # stop starting new heavy work above this RSS (tree-wide)
+  per_worker_gb: 2.5              # planning estimate per render/encode worker
+  min_free_gb: 2.0                # never start a heavy step with less free RAM than this
+disk:
+  min_free_gb: 5.0                # refuse heavy downloads/renders below this
+cpu:
+  max_workers: 3                  # never more than this, and limited by memory first
+blender:
+  enabled_if_available: true
+  max_preview_res: [960, 540]
+  max_samples: 32
+  max_scene_minutes: 12           # refuse a Blender scene estimated above this
+quotas:
+  tts_monthly_chars: 850000
+  youtube_daily_units: 9000
+tokens:
+  # Claude subscription usage planner (studio.resource_manager.usage); never fabricate token counts
+  lean_fraction: 0.6

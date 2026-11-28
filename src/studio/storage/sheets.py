@@ -120,14 +120,28 @@ class SheetsStore:
     def update_fields(self, video_id, expected_version, **updates):
         return self._mutate(video_id, None, None, expected_version, updates)
 
+    def _ensure_tab(self, tab: str) -> None:
+        """Create a missing tab with its header (studio tabs are added lazily; existing tabs untouched)."""
+        if tab in getattr(self, "_known_tabs", set()):
+            return
+        meta = self.svc.get(spreadsheetId=self.sid, fields="sheets(properties(title))").execute(num_retries=RETRIES)
+        self._known_tabs = {s["properties"]["title"] for s in meta["sheets"]}
+        if tab not in self._known_tabs:
+            self.svc.batchUpdate(spreadsheetId=self.sid, body={"requests": [
+                {"addSheet": {"properties": {"title": tab}}}]}).execute(num_retries=RETRIES)
+            self._write(f"{tab}!A1", [list(TABS[tab])])
+            self._known_tabs.add(tab)
+
     def append(self, tab, row):
         if tab not in TABS or tab == "VideoQueue":
             raise ValueError(tab)
+        self._ensure_tab(tab)
         self.svc.values().append(spreadsheetId=self.sid, range=f"{tab}!A1", valueInputOption="RAW",
                                  insertDataOption="INSERT_ROWS",
                                  body={"values": [[str(row.get(c, "")) for c in TABS[tab]]]}).execute(num_retries=RETRIES)
 
     def rows(self, tab):
+        self._ensure_tab(tab)
         return self._table(tab)
 
     def get_config(self, key, default=""):

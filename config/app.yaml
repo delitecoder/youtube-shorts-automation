@@ -1,0 +1,21 @@
+# Non-secret application defaults. Secrets and the protected flags (DRY_RUN, UPLOAD_ENABLED,
+# PUBLICATION_ENABLED, PROMOTION_ENABLED) are environment-only and are NOT read from here.
+channel:
+  name: DeliteCoder
+  handle: "@delitecoder"
+  identity: professional technology education and explainers
+  languages: [en, ta]
+  timezone: Asia/Kolkata
+editorial:
+  allowed_domains: [ai, machine learning, software engineering, programming, data engineering, cloud,
+                    cybersecurity, databases, hardware, robotics, scientific computing, emerging technology,
+                    system design]
+  # rejected unless the brief states a substantial technology lesson (studio.editorial.policy)
+  rejected_unless_tech_lesson: [entertainment news, celebrity, movie trailer, sports, politics, viral meme]
+  formats:
+    short: {min_s: 45, max_s: 75}
+    long: {min_s: 170, max_s: 480}
+  daily: {shorts: 1, long: 1, localize_to: [ta]}
+state:
+  local_dir: runtime/state
+  durable_tab: RunState

@@ -1,0 +1,45 @@
+# Model routing policy (studio.core.model_router). Route by TASK, not by agent name.
+# Model ids are the aliases Claude Code accepts in agent frontmatter; `fallback` is used when a model
+# is unavailable (never silently upgrade to a more expensive tier).
+models:
+  haiku:  {alias: haiku,  tier: 1, fallback: sonnet}
+  sonnet: {alias: sonnet, tier: 2, fallback: haiku}
+  opus:   {alias: opus,   tier: 3, fallback: sonnet}
+  fable:  {alias: fable,  tier: 4, fallback: opus, requires_credits: true}
+deterministic: [analytics_math, statistics, experiment_assignment, budget_accounting, checksums,
+                audio_normalization, audio_qc, video_qc, caption_validation, playlist_reconcile,
+                api_pagination, state_transitions, retries, scheduling, resource_monitoring,
+                json_validation, local_similarity]
+tasks:
+  # task: {model, max_output_tokens, retries, escalate_to}
+  topic_classification:   {model: haiku,  max_output_tokens: 800,  retries: 1, escalate_to: sonnet}
+  search_filtering:       {model: haiku,  max_output_tokens: 1200, retries: 1, escalate_to: sonnet}
+  metadata_extraction:    {model: haiku,  max_output_tokens: 1000, retries: 1, escalate_to: sonnet}
+  claim_indexing:         {model: haiku,  max_output_tokens: 1500, retries: 1, escalate_to: sonnet}
+  duplicate_triage:       {model: haiku,  max_output_tokens: 600,  retries: 1, escalate_to: sonnet}
+  comment_categorization: {model: haiku,  max_output_tokens: 800,  retries: 1, escalate_to: sonnet}
+  qc_summary:             {model: haiku,  max_output_tokens: 800,  retries: 1, escalate_to: sonnet}
+  research:               {model: haiku,  max_output_tokens: 3000, retries: 1, escalate_to: sonnet}
+  research_verification:  {model: sonnet, max_output_tokens: 2500, retries: 1, escalate_to: opus}
+  scriptwriting:          {model: sonnet, max_output_tokens: 6000, retries: 1, escalate_to: opus}
+  scene_design:           {model: sonnet, max_output_tokens: 4000, retries: 1, escalate_to: opus}
+  animation_code:         {model: sonnet, max_output_tokens: 8000, retries: 2, escalate_to: opus}
+  blender_script:         {model: sonnet, max_output_tokens: 6000, retries: 2, escalate_to: opus}
+  audio_direction:        {model: sonnet, max_output_tokens: 3000, retries: 1, escalate_to: opus}
+  localization:           {model: sonnet, max_output_tokens: 6000, retries: 1, escalate_to: opus}
+  technical_review:       {model: sonnet, max_output_tokens: 2500, retries: 1, escalate_to: opus}
+  analytics_interpretation: {model: sonnet, max_output_tokens: 2500, retries: 1, escalate_to: opus}
+  experiment_design:      {model: sonnet, max_output_tokens: 2500, retries: 1, escalate_to: opus}
+  code_implementation:    {model: sonnet, max_output_tokens: 8000, retries: 2, escalate_to: opus}
+  code_review:            {model: sonnet, max_output_tokens: 3000, retries: 1, escalate_to: opus}
+  email_design:           {model: sonnet, max_output_tokens: 4000, retries: 1, escalate_to: opus}
+  scene_review:           {model: sonnet, max_output_tokens: 1200, retries: 1, escalate_to: opus}
+  final_qc:               {model: sonnet, max_output_tokens: 2000, retries: 1, escalate_to: opus}
+  orchestration:          {model: opus,   max_output_tokens: 4000, retries: 0, escalate_to: null}
+  architecture:           {model: opus,   max_output_tokens: 6000, retries: 0, escalate_to: null}
+  editorial_direction:    {model: opus,   max_output_tokens: 3000, retries: 0, escalate_to: null}
+  source_arbitration:     {model: opus,   max_output_tokens: 3000, retries: 0, escalate_to: null}
+  release_review:         {model: opus,   max_output_tokens: 4000, retries: 0, escalate_to: null}
+escalation:
+  max_attempts: 2          # total escalation hops per task
+  reasons: [validation_failed, low_confidence]   # (not "on": YAML 1.1 reads it as true)

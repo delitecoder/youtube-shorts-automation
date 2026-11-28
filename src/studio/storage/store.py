@@ -48,6 +48,27 @@ TABS: dict[str, tuple[str, ...]] = {
     "ErrorLog": ("logged_at", "video_id", "component", "severity", "message", "notified"),
     # Owner-written plan: a row for a date overrides that day's theme rotation (see config.theme_for).
     "ThemePlan": ("date", "theme", "details"),
+    # ---- studio additions (new tabs only; the tabs above are read by the deployed Apps Script) ----
+    # Durable run checkpoints: append-only, latest row per run_id wins; sha256 verifies read-back.
+    "RunState": ("saved_at", "run_id", "video_id", "stage", "status", "payload", "sha256"),
+    # Every stage/model step: what ran, on which model, how long, outcome (tokens only when known).
+    "Ledger": ("logged_at", "run_id", "video_id", "stage", "actor", "model", "reason", "wall_s",
+               "tokens_in", "tokens_out", "outcome"),
+    "ProductionManifest": ("recorded_at", "video_id", "format", "lang", "topic_category", "story_structure",
+                           "hook_type", "style_id", "visual_approaches", "pacing", "length_s", "voice",
+                           "audio_profile", "music", "sfx_density", "thumbnail_style", "experiment_id",
+                           "arm", "render_s", "qc_score", "manifest_ref"),
+    "ContentMemory": ("recorded_at", "video_id", "kind", "key", "fingerprint", "text"),
+    "Experiments": ("updated_at", "exp_id", "status", "dimension", "hypothesis", "variable", "control",
+                    "treatment", "scope", "metric", "min_n", "n_control", "n_treatment", "effect",
+                    "ci_low", "ci_high", "conclusion", "evidence"),
+    "Assignments": ("assigned_at", "video_id", "exp_id", "arm", "policy"),
+    "VideoFacts": ("snapshot_at", "video_id", "youtube_video_id", "format", "lang", "days_live", "views",
+                   "impressions", "ctr", "avg_view_pct", "avg_view_s", "watch_min", "likes", "comments",
+                   "shares", "subs", "unknown_metrics"),
+    "Recommendations": ("updated_at", "scope", "dimension", "choice", "confidence", "evidence", "explanation"),
+    "Pronunciation": ("term", "spoken", "lang", "ipa", "ssml", "status", "notes", "updated_at"),
+    "Playlists": ("updated_at", "playlist_id", "title", "lang", "category", "video_ids"),
 }
 
 VIDEO_ID_RE = re.compile(r"^VIDEO-(\d{8})-(\d{3})$")
