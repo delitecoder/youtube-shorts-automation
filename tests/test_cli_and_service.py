@@ -17,7 +17,7 @@ def run(rt, *args, check=True):
            "PYTHONPATH": str(ROOT / "src")}
     for k in ("YTA_PIPELINE_OAUTH", "SPREADSHEET_ID", "UPLOAD_ENABLED"):
         env.pop(k, None)
-    p = subprocess.run([sys.executable, "-m", "ytauto", *args], capture_output=True, text=True, env=env)
+    p = subprocess.run([sys.executable, "-m", "studio", *args], capture_output=True, text=True, env=env)
     if check and p.returncode != 0:
         raise AssertionError(p.stdout + p.stderr)
     return json.loads(p.stdout.strip().splitlines()[-1])
@@ -77,7 +77,7 @@ def test_existing_video_flow_dry_run(tmp_path):
 def test_doctor_blocks_upload_flag_in_pipeline(tmp_path):
     env = {**os.environ, "YTA_RUNTIME_DIR": str(tmp_path), "UPLOAD_ENABLED": "true",
            "PYTHONPATH": str(ROOT / "src")}
-    p = subprocess.run([sys.executable, "-m", "ytauto", "doctor"], capture_output=True, text=True, env=env)
+    p = subprocess.run([sys.executable, "-m", "studio", "doctor"], capture_output=True, text=True, env=env)
     assert p.returncode == 2 and "UPLOAD_ENABLED" in p.stdout
 
 
@@ -93,7 +93,7 @@ def client(monkeypatch):
     class Stub:
         def publish(self, vid):
             calls.append(vid)
-            from ytauto.publishing.publisher import PublishResult
+            from studio.youtube.publisher import PublishResult
             return PublishResult("dry_run", "ok")
 
     monkeypatch.setattr(service, "get_publisher", lambda: Stub())
@@ -102,7 +102,7 @@ def client(monkeypatch):
 
 
 def signed(body, secret="k" * 40, nonce="a" * 32, ts=None):
-    from ytauto.approval.webhook_auth import sign
+    from studio.youtube.approval.webhook_auth import sign
     ts = ts or str(int(time.time()))
     return {"X-YTA-Timestamp": ts, "X-YTA-Nonce": nonce, "X-YTA-Signature": sign(secret, ts, nonce, body)}
 

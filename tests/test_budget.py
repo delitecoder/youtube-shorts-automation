@@ -1,7 +1,7 @@
 """Claude usage planner: full / lean / wait / weekly_stop and cost learning."""
 from datetime import datetime, timedelta, timezone
 
-from ytauto.orchestration import budget as b
+from studio.resource_manager import usage as b
 
 NOW = datetime(2026, 11, 24, 4, 37, tzinfo=timezone.utc)          # 10:07 IST
 
@@ -46,7 +46,7 @@ def test_cost_is_learned_and_mid_run_resets_ignored():
 
 
 def test_audit_rules_turn_numbers_into_guidance():
-    from ytauto.analytics.audit import analyse, email_text
+    from studio.analytics.audit import analyse, email_text
     rep = {"date": "2026-11-24", "last7": {"views": 36, "subscribersGained": 0}, "prev7": {"views": 900},
            "last28": {"views": 1300}, "prev28": {"views": 30},
            "videos": [{"video": f"v{i}", "views": v, "averageViewPercentage": p, "averageViewDuration": 8,
@@ -62,7 +62,7 @@ def test_audit_rules_turn_numbers_into_guidance():
 
 
 def test_audit_with_no_data_does_not_invent():
-    from ytauto.analytics.audit import analyse
+    from studio.analytics.audit import analyse
     a = analyse({"date": "2026-11-24", "videos": []})
     assert a["top"] == [] and "No video data" in a["suggestions"][0]
 
@@ -73,14 +73,15 @@ def test_budget_unknown_usage_is_lean_and_invents_nothing(tmp_path):
     root = Path(__file__).resolve().parents[1]
     env = {**os.environ, "YTA_RUNTIME_DIR": str(tmp_path), "DRY_RUN": "true", "PYTHONPATH": str(root / "src")}
     env.pop("YTA_PIPELINE_OAUTH", None)
-    out = subprocess.run([sys.executable, "-m", "ytauto", "budget", "--unknown"], capture_output=True, text=True, env=env)
+    out = subprocess.run([sys.executable, "-m", "studio", "budget", "--unknown"], capture_output=True, text=True, env=env)
     d = json.loads(out.stdout.strip().splitlines()[-1])
     assert d["decision"] == "go_lean" and d["usage_known"] is False
 
 
 def test_loudness_two_pass_hits_target(tmp_path):
     import numpy as np
-    from ytauto.production import audio, sound
+    from studio.audio import mastering as audio
+    from studio.audio import mix as sound
     sr = sound.SR
     x = np.zeros(sr * 30, np.float32)                 # speech-like bursts with long pauses
     for start in range(0, 26, 4):

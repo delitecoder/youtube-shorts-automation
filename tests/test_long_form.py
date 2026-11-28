@@ -2,10 +2,10 @@
 import json
 from datetime import datetime, timezone
 
-from ytauto.config import SYSTEM_DESIGN_SYLLABUS
-from ytauto.production import hyperframes as hf
-from ytauto.production import storyboard as sbm
-from ytauto.store import is_long, next_video_id
+from studio.core.config import SYSTEM_DESIGN_SYLLABUS
+from studio.video import hyperframes as hf
+from studio.editorial import storyboard as sbm
+from studio.storage.store import is_long, next_video_id
 
 from test_cli_and_service import run
 

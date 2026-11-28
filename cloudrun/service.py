@@ -20,7 +20,7 @@ from flask import Flask, jsonify, request
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 sys.path.insert(0, "/app/src")
 
-from ytauto.approval.webhook_auth import NonceCache, WebhookAuthError, verify  # noqa: E402
+from studio.youtube.approval.webhook_auth import NonceCache, WebhookAuthError, verify  # noqa: E402
 
 VIDEO_ID_RE = re.compile(r"^VIDEO-\d{8}-\d{3}$")
 app = Flask(__name__)
@@ -34,17 +34,17 @@ def get_publisher():
     """Built lazily so the health check works without credentials."""
     global _publisher
     if _publisher is None:
-        from ytauto.config import Settings
-        from ytauto.integrations.drive import Drive
-        from ytauto.integrations.gmail_verify import GmailVerifier
-        from ytauto.integrations.google_auth import build_service
-        from ytauto.integrations.sheets import SheetsStore
-        from ytauto.integrations.youtube import YouTube
-        from ytauto.publishing.publisher import Publisher
+        from studio.core.config import Settings
+        from studio.storage.drive import Drive
+        from studio.youtube.approval.gmail_verify import GmailVerifier
+        from studio.core.google_auth import build_service
+        from studio.storage.sheets import SheetsStore
+        from studio.youtube.client import YouTube
+        from studio.youtube.publisher import Publisher
 
         # Non-secret settings (spreadsheet, folders, approver) come from Drive 00_Config/keys.json.
         # Safety flags never do: DRY_RUN / UPLOAD_ENABLED / PUBLICATION_ENABLED are Cloud Run env only.
-        from ytauto.integrations.keys import load_into_env
+        from studio.storage.keys import load_into_env
         try:
             rep = load_into_env(build_service("drive", "v3", "publisher"),
                                 exclude={"DRY_RUN", "PROMOTION_ENABLED", "GOOGLE_TTS_API_KEY",

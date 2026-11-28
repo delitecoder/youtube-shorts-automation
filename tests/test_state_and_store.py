@@ -2,8 +2,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from ytauto.state import ConflictError, InvalidTransition, State, TERMINAL_STATES, VideoRecord
-from ytauto.store import next_video_id
+from studio.core.state import ConflictError, InvalidTransition, State, TERMINAL_STATES, VideoRecord
+from studio.storage.store import next_video_id
 
 
 def test_happy_path_transitions(store):
@@ -49,7 +49,7 @@ def test_terminal_states_have_no_exits():
 
 
 def test_approval_cannot_be_skipped():
-    from ytauto.state import TRANSITIONS
+    from studio.core.state import TRANSITIONS
     into_approved = [s for s, nxt in TRANSITIONS.items() if State.APPROVED in nxt]
     into_uploading = [s for s, nxt in TRANSITIONS.items() if State.UPLOADING in nxt]
     assert into_approved == [State.AWAITING_APPROVAL]
@@ -67,7 +67,7 @@ def test_windows_lock_path(tmp_path, monkeypatch):
     """Simulate Windows (no fcntl) with a fake msvcrt and check the store still works."""
     import types
 
-    import ytauto.store as st
+    import studio.storage.store as st
     calls = []
     fake = types.SimpleNamespace(LK_NBLCK=2, LK_UNLCK=0,
                                  locking=lambda fd, mode, n: calls.append(mode))
@@ -83,6 +83,6 @@ def test_windows_lock_path(tmp_path, monkeypatch):
 def test_sheets_calls_retry_dropped_connections():
     import inspect
 
-    from ytauto.integrations import sheets
+    from studio.storage import sheets
     src = inspect.getsource(sheets)
     assert ".execute()" not in src and src.count("num_retries=RETRIES") >= 8 and sheets.RETRIES >= 2

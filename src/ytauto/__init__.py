@@ -1,1 +1,1 @@
-__version__ = "0.1.0"
+"""Deprecated name kept for one transition period: stored schedule prompts may still run `python -m ytauto`."""

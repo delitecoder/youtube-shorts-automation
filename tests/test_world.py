@@ -1,5 +1,5 @@
 """Stickman world: every location builds, the cast keeps its look, speech and camera are animated."""
-from ytauto.production import world
+from studio.animation import world
 
 
 def test_every_location_and_cast_member_builds():

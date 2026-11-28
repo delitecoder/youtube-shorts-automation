@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from ytauto.production.custom_scene import SceneRejected, check, load, wrap_js
+from studio.animation.custom_scene import SceneRejected, check, load, wrap_js
 
 GOOD_HTML = '<div id="s2-root"><style>#s2-root .b{color:#fff}</style><div id="s2-box" class="b">API</div>' \
             '<img id="s2-img" src="assets/scene3.jpg"></div>'
@@ -40,7 +40,7 @@ def test_load_and_fallback_reason(tmp_path):
 
 
 def test_builder_uses_custom_scene_and_falls_back_safely(tmp_path):
-    from ytauto.production import hyperframes as hfr
+    from studio.video import hyperframes as hfr
     if not (hfr.RENDERER_DIR / "node_modules" / "gsap").exists():
         pytest.skip("renderer deps not installed")
     sb = {"video_id": "VIDEO-20261125-001", "scenes": [

@@ -3,9 +3,8 @@ from datetime import timedelta
 import pytest
 from conftest import APPROVER, awaiting_record
 
-from ytauto.approval.gate import (ApprovalRejected, ReplyEvidence, is_expired, new_text,
-                                  parse_command, validate_reply)
-from ytauto.state import State
+from studio.youtube.approval.gate import ApprovalRejected, ReplyEvidence, is_expired, new_text, parse_command, validate_reply
+from studio.core.state import State
 
 VID = "VIDEO-20261124-001"
 

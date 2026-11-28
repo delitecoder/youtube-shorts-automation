@@ -96,10 +96,10 @@ def main() -> int:
     print(f"  https://console.cloud.google.com/flows/enableapi?apiid={','.join(APIS)}&project={project}\n")
 
     from googleapiclient.discovery import build
-    from ytauto.config import Settings
-    from ytauto.integrations.drive import Drive
-    from ytauto.integrations.google_auth import PROFILES
-    from ytauto.integrations.sheets import SheetsStore
+    from studio.core.config import Settings
+    from studio.storage.drive import Drive
+    from studio.core.google_auth import PROFILES
+    from studio.storage.sheets import SheetsStore
 
     # 1) pipeline login
     print("Step 1 — Google login for the daily pipeline (browser opens; click Allow)…")

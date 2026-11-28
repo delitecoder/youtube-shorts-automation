@@ -3,8 +3,8 @@ import subprocess
 
 import pytest
 
-from ytauto.integrations.drive import sha256_file
-from ytauto.production.source_video import assess, rights_declaration
+from studio.storage.drive import sha256_file
+from studio.video.source_video import assess, rights_declaration
 
 
 def make_video(path, w, h, secs, audio=True):

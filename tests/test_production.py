@@ -6,12 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from ytauto.analytics.youtube_analytics import recommend_publish_time, summary
-from ytauto.production import captions
-from ytauto.production.storyboard import validate_metadata, validate_storyboard
-from ytauto.promotion.bluesky import build_post
-from ytauto.publishing.schedule import next_slot, rfc3339
-from ytauto.research.validate import validate_research
+from studio.analytics.snapshots import recommend_publish_time, summary
+from studio.subtitles import captions
+from studio.editorial.storyboard import validate_metadata, validate_storyboard
+from studio.youtube.promotion.bluesky import build_post
+from studio.youtube.schedule import next_slot, rfc3339
+from studio.research.validate import validate_research
 
 FIX = Path(__file__).parent / "fixtures"
 SB = json.loads((FIX / "sample_storyboard.json").read_text())
@@ -106,8 +106,8 @@ def test_bluesky_post_link_facet():
 
 @pytest.mark.slow
 def test_full_render_meets_output_spec(tmp_path):
-    from ytauto.integrations.tts import ToneTTS
-    from ytauto.production.render import render
+    from studio.audio.tts import ToneTTS
+    from studio.video.render import render
     sb = copy.deepcopy(SB)
     sb["scenes"] = sb["scenes"][:5]
     for s in sb["scenes"]:
@@ -120,7 +120,7 @@ def test_full_render_meets_output_spec(tmp_path):
 
 
 def test_simple_string_visuals_are_normalised():
-    from ytauto.production.storyboard import normalize_visual
+    from studio.editorial.storyboard import normalize_visual
     c = normalize_visual({"type": "comparison", "left": "Before: stateful, two-way", "right": "Now stateless"})
     assert c["left"] == {"title": "Before", "items": ["stateful", "two-way"]}
     assert c["right"] == {"title": "After", "items": ["Now stateless"]}
@@ -131,7 +131,8 @@ def test_simple_string_visuals_are_normalised():
 
 def test_hyperframes_composition_is_complete_and_captions_do_not_overlap(tmp_path):
     import re as _re
-    from ytauto.production import hyperframes as hfr, captions as cap
+    from studio.video import hyperframes as hfr
+    from studio.subtitles import captions as cap
     if not (hfr.RENDERER_DIR / "node_modules" / "gsap").exists():
         pytest.skip("npm ci --prefix renderer/hyperframes not run")
     sb = copy.deepcopy(SB)
@@ -150,7 +151,7 @@ def test_hyperframes_composition_is_complete_and_captions_do_not_overlap(tmp_pat
 
 
 def test_free_slot_skips_taken_evenings():
-    from ytauto.publishing.schedule import free_slot
+    from studio.youtube.schedule import free_slot
     now = datetime(2026, 11, 24, 4, 30, tzinfo=timezone.utc)           # 10:00 IST
     assert rfc3339(free_slot(now, set())) == "2026-11-24T14:00:00Z"
     assert rfc3339(free_slot(now, {"2026-11-24T14:00:00Z"})) == "2026-11-25T14:00:00Z"
@@ -159,7 +160,7 @@ def test_free_slot_skips_taken_evenings():
 
 
 def test_peak_slots_need_real_evidence():
-    from ytauto.analytics.peak import choose_slots
+    from studio.analytics.peak import choose_slots
     mon = datetime(2026, 11, 2, tzinfo=timezone.utc)          # a Monday
     def at(day, hour_ist, views):
         return (mon + timedelta(days=day, hours=hour_ist - 5.5), views)

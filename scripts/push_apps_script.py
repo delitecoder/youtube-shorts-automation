@@ -35,9 +35,9 @@ def main() -> int:
         return 0
     from googleapiclient.discovery import build
 
-    from ytauto.integrations.google_auth import credentials
-    from ytauto.orchestration.context import Ctx
-    from ytauto.store import log_error
+    from studio.core.google_auth import credentials
+    from studio.orchestration.context import Ctx
+    from studio.storage.store import log_error
 
     code = (ROOT / "apps_script/approval_watcher.gs").read_text()
     manifest = (ROOT / "apps_script/appsscript.json").read_text()

@@ -1,6 +1,6 @@
 """Licensed audio selection + story sound cues."""
-from ytauto.production import audio_library as al
-from ytauto.production import sound
+from studio.audio import library as al
+from studio.audio import mix as sound
 
 
 def _a(i, cat, kind="sfx", lic="CC0-1.0", tags=()):

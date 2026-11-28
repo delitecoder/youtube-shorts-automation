@@ -2,7 +2,7 @@ import pytest
 from googleapiclient.errors import HttpError
 from httplib2 import Response
 
-from ytauto.integrations.youtube import UploadError, UploadRequest, build_body, run_resumable
+from studio.youtube.client import UploadError, UploadRequest, build_body, run_resumable
 
 
 def http_error(code):

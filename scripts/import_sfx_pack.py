@@ -6,7 +6,7 @@ Earshot SFX collection by Paul Urmson (itch.io). Run on your computer after extr
         --source "Earshot SFX (Paul Urmson)" --license-file ~/Downloads/earshot/License.txt
 
 Then upload the *contents* of sfx_library/ to Drive 01_Inbox/References/SFX and run
-`python -m ytauto sync-library`. Read the pack's licence yourself first: this tool records it,
+`python -m studio sync-library`. Read the pack's licence yourself first: this tool records it,
 it does not grant any rights. Files are picked by keyword per category, trimmed to 2.5 s.
 """
 import argparse

@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 from conftest import APPROVER, awaiting_record
 
-from ytauto.approval.gate import ReplyEvidence
-from ytauto.publishing.publisher import Publisher
-from ytauto.state import State, iso
+from studio.youtube.approval.gate import ReplyEvidence
+from studio.youtube.publisher import Publisher
+from studio.core.state import State, iso
 
 VID = "VIDEO-20261124-001"
 CONTENT = b"exact approved bytes"

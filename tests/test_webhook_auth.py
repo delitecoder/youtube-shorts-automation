@@ -1,6 +1,6 @@
 import pytest
 
-from ytauto.approval.webhook_auth import NonceCache, WebhookAuthError, sign, verify
+from studio.youtube.approval.webhook_auth import NonceCache, WebhookAuthError, sign, verify
 
 SECRET = "s" * 40
 BODY = b'{"video_id": "VIDEO-20261124-001"}'

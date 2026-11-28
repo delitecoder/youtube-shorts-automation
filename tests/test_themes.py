@@ -1,7 +1,7 @@
 """Daily content theme rotation."""
 from datetime import date, timedelta
 
-from ytauto.config import ALLOWED_CATEGORIES, CONTENT_ROTATION, CONTENT_THEMES, theme_for
+from studio.core.config import ALLOWED_CATEGORIES, CONTENT_ROTATION, CONTENT_THEMES, theme_for
 
 from test_cli_and_service import run
 
@@ -46,7 +46,7 @@ def test_theme_plan_overrides_rotation():
 
 def test_music_tempo_analysis_and_theme_match(tmp_path):
     import numpy as np
-    from ytauto.production.sound import SR, analyze_music, mood_distance, synth_music, write_wav
+    from studio.audio.mix import SR, analyze_music, mood_distance, synth_music, write_wav
     n = int(20 * SR)
     for bpm in (90, 128):
         x = np.zeros(n, np.float32)

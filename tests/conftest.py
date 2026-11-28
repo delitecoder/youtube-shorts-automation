@@ -7,9 +7,9 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from ytauto.config import Settings  # noqa: E402
-from ytauto.state import State, VideoRecord, iso  # noqa: E402
-from ytauto.store import JsonFileStore  # noqa: E402
+from studio.core.config import Settings  # noqa: E402
+from studio.core.state import State, VideoRecord, iso  # noqa: E402
+from studio.storage.store import JsonFileStore  # noqa: E402
 
 APPROVER = "owner@example.com"
 T0 = datetime(2026, 11, 24, 5, 0, tzinfo=timezone.utc)   # approval request sent

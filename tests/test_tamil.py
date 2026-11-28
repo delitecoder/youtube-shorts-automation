@@ -4,11 +4,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
-from ytauto.config import Settings
-from ytauto.integrations.tts import for_language
-from ytauto.production import storyboard as sbm
-from ytauto.state import State
-from ytauto.store import is_long, language_of, next_video_id
+from studio.core.config import Settings
+from studio.audio.tts import for_language
+from studio.editorial import storyboard as sbm
+from studio.core.state import State
+from studio.storage.store import is_long, language_of, next_video_id
 
 from test_cli_and_service import FIX, run
 
@@ -60,7 +60,7 @@ def test_localize_creates_tamil_item_once(tmp_path):
 
 
 def test_discover_asks_for_tamil_version_after_english_submit():
-    from ytauto.orchestration import cli
+    from studio.cli import app as cli
     today = "20261125"
     en = SimpleNamespace(video_id=f"VIDEO-{today}-001", state=State.AWAITING_APPROVAL, source_type="GENERATED", notes="")
     ctx = SimpleNamespace(s=Settings.from_env({}))
@@ -80,7 +80,7 @@ def test_tamil_duration_estimate_uses_characters():
 
 
 def test_texts_export_merge_changes_only_text():
-    from ytauto.production import texts as tx
+    from studio.editorial import texts as tx
     sb = sbm.normalize(json.loads((FIX / "sample_storyboard.json").read_text()))
     sb["scenes"][0]["visual"] = {"type": "custom", "code": "scene1", "full_frame": True}
     items = tx.export(sb)
@@ -99,7 +99,7 @@ def test_texts_export_merge_changes_only_text():
 
 
 def test_localize_from_texts(tmp_path):
-    from ytauto.production import texts as tx
+    from studio.editorial import texts as tx
     rt = tmp_path / "rt"
     vid = run(rt, "new-item")["video_id"]
     sb = json.loads((FIX / "sample_storyboard.json").read_text()) | {"video_id": vid}
@@ -113,7 +113,7 @@ def test_localize_from_texts(tmp_path):
 
 
 def test_backlog_guard_blocks_new_item_when_earlier_video_holds_a_future_slot():
-    from ytauto.orchestration import cli
+    from studio.cli import app as cli
     from datetime import date
     ctx = SimpleNamespace(s=Settings.from_env({}))
     old = SimpleNamespace(video_id="VIDEO-20261126-101", state=State.AWAITING_APPROVAL,

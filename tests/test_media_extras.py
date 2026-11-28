@@ -8,11 +8,12 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from ytauto.config import Settings
-from ytauto.integrations import tts
-from ytauto.production import sound, vision
-from ytauto.production.storyboard import validate_storyboard, with_outro
-from ytauto.research import images as im
+from studio.core.config import Settings
+from studio.audio import tts
+from studio.audio import mix as sound
+from studio.research import vision
+from studio.editorial.storyboard import validate_storyboard, with_outro
+from studio.research import images as im
 
 FIX = Path(__file__).parent / "fixtures"
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -87,7 +88,7 @@ def test_cues_follow_scenes():
 
 
 def test_mix_ducks_and_normalises(tmp_path):
-    from ytauto.production.media_probe import loudness_lufs
+    from studio.video.media_probe import loudness_lufs
     voice = np.zeros(sound.SR * 6, np.float32)
     t = np.arange(sound.SR * 2) / sound.SR
     voice[sound.SR: sound.SR * 3] = 0.3 * np.sin(2 * np.pi * 200 * t)
@@ -238,7 +239,7 @@ def test_outro_appended_and_not_in_script():
 
 
 # ------------------------------------------------------------------ Drive keys.json
-from ytauto.integrations import keys as keysmod  # noqa: E402
+from studio.storage import keys as keysmod  # noqa: E402
 
 
 def test_keys_whitelist_and_never_flags():
@@ -305,7 +306,7 @@ def test_publisher_never_takes_flags_or_secrets_from_drive():
 
 
 def test_script_admin_falls_back_to_pipeline_login_only_with_scope(monkeypatch):
-    from ytauto.integrations import google_auth as ga
+    from studio.core import google_auth as ga
     monkeypatch.delenv("YTA_SCRIPT_OAUTH", raising=False)
     monkeypatch.setenv("YTA_PIPELINE_OAUTH", json.dumps({"scopes": ["https://www.googleapis.com/auth/drive"]}))
     with pytest.raises(ga.MissingCredentials):
