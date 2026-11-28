@@ -14,7 +14,7 @@ description: Add or refresh licensed background music for the Shorts pipeline. U
 | YuE / LeVo | Mixed / restrictive | Check | Avoid unless licence fits |
 
 ## How the pipeline uses music
-1. Default: `src/ytauto/production/sound.py::synth_music` — an original procedural bed (pad +
+1. Default: `src/studio/audio/mix.py::synth_music` — an original procedural bed (pad +
    arpeggio + soft pulse), seeded per video, no third-party rights, CPU in < 1 s.
 2. If `runtime/library/music/manifest.json` lists tracks, one is picked per video (looped/trimmed,
    ducked under narration with a sidechain compressor, -14 LUFS final mix) and credited.
@@ -34,7 +34,7 @@ Run outside the daily task — never inside the scheduled run (too slow on CPU, 
                 "license": "MIT model licence; generated output owned by channel"}]}
    ```
 4. Upload files + manifest to Drive `01_Inbox/References/Music`, then run
-   `PYTHONPATH=src python -m ytauto sync-library`.
+   `PYTHONPATH=src python -m studio sync-library`.
 Entries without `source` and `license` are ignored by the pipeline.
 
 ## Sound effects (Earshot)

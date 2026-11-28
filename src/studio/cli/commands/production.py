@@ -284,7 +284,6 @@ def cmd_scene_frames(ctx: Ctx, a) -> int:
     from studio.video import brand as brandmod
     from studio.subtitles import captions
     from studio.video import hyperframes as hfr
-    from studio.video import reference as ref
     sb = sbmod.normalize(load_json(a.storyboard))
     rec = ctx.store.get(a.video_id)
     wd = WORK / rec.video_id

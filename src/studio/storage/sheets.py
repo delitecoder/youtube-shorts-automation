@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import time
 
-from studio.core.state import COLUMNS, ConflictError, State, VideoRecord, iso, utcnow
+from studio.core.state import COLUMNS, ConflictError, VideoRecord, iso, utcnow
 from studio.storage.store import TABS, _apply
 
 SPREADSHEET_NAME = "YouTube_Automation_Control"

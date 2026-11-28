@@ -26,7 +26,7 @@ tasks:
   animation_code:         {model: sonnet, max_output_tokens: 8000, retries: 2, escalate_to: opus}
   blender_script:         {model: sonnet, max_output_tokens: 6000, retries: 2, escalate_to: opus}
   audio_direction:        {model: sonnet, max_output_tokens: 3000, retries: 1, escalate_to: opus}
-  localization:           {model: sonnet, max_output_tokens: 6000, retries: 1, escalate_to: opus}
+  localization:           {model: opus,   max_output_tokens: 6000, retries: 1, escalate_to: null}   # owner 2026-11-25: Opus for Tamil
   technical_review:       {model: sonnet, max_output_tokens: 2500, retries: 1, escalate_to: opus}
   analytics_interpretation: {model: sonnet, max_output_tokens: 2500, retries: 1, escalate_to: opus}
   experiment_design:      {model: sonnet, max_output_tokens: 2500, retries: 1, escalate_to: opus}

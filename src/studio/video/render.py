@@ -21,7 +21,6 @@ from PIL import Image, ImageDraw, ImageFont
 
 from studio.audio import mastering as audio
 from studio.subtitles import captions
-from studio.audio import mix as sound
 from studio.video.media_probe import loudness_lufs, probe
 
 W, H, FPS = 1080, 1920, 30

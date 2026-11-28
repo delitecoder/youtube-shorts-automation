@@ -10,6 +10,7 @@ The owner updates the script; Claude never pushes it. Newest first. Each entry =
   (no new permission).
 - **Fix:** the Cloud Run path now keeps an approved video retryable when the publisher answers
   "dry run" or "disabled" (it used to be marked done forever).
+- **Cleanup:** removed the unused `imageLines_` helper (no behaviour change).
 - **Fix:** default YouTube category is Education (27), matching the pipeline settings.
 - **Approval email:** a "Checks" line shows video/audio QC, loudness, caption timing (from the real
   speech or estimated), licence status and the planned playlist.

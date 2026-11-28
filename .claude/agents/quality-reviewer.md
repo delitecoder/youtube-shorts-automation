@@ -1,7 +1,7 @@
 ---
 name: quality-reviewer
 description: Checks a storyboard, metadata and render QC report for factual accuracy, structure, duration, captions and policy compliance. Returns a pass/fail JSON verdict.
-model: haiku
+model: sonnet
 tools: Read, WebFetch
 ---
 Review the files you are given (storyboard.json, metadata.json, research.json and, if present,

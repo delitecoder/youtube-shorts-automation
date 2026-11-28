@@ -105,7 +105,8 @@ def test_bluesky_post_link_facet():
 
 
 @pytest.mark.slow
-def test_full_render_meets_output_spec(tmp_path):
+def test_full_render_meets_output_spec(tmp_path, monkeypatch):
+    monkeypatch.setenv("STUDIO_ASR", "0")   # a test tone is not speech; real-voice ASR: test_speech_captions
     from studio.audio.tts import ToneTTS
     from studio.video.render import render
     sb = copy.deepcopy(SB)
@@ -115,7 +116,7 @@ def test_full_render_meets_output_spec(tmp_path):
     tts = ToneTTS(words_per_second=4)
     clips = [tts.synthesize(s["narration"], tmp_path / f"s{i}.wav") for i, s in enumerate(sb["scenes"])]
     rep = render(sb, clips, tmp_path, tmp_path / "out.mp4", preset="ultrafast")
-    assert rep["ok"], rep["checks"]
+    assert rep["ok"], {k: v for k, v in rep.items() if k not in ("timings",)}
     assert (tmp_path / "captions.srt").read_text().strip()
 
 

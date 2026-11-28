@@ -30,7 +30,7 @@ VISUAL_TYPES = {
     "comparison": {"left", "right"},
     "timeline": {"events"},
     "question": {"question"},
-    "image": {"asset"},          # file name of an image fetched with `ytauto fetch-asset`
+    "image": {"asset"},          # file name of an image fetched with `studio fetch-asset`
     "custom": {"code"},          # scene-coder (camera man) HTML+GSAP in scenes/<code>.html/.js
     "stickman": {"actions"},     # code-drawn acting stick figure (production/stickman.py)
     "three": {"template"},

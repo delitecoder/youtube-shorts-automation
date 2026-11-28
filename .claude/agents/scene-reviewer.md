@@ -1,6 +1,6 @@
 ---
 name: scene-reviewer
-description: Reviews ONE rendered scene (a strip of 3 stills from `ytauto scene-frames`) against its storyboard entry and rules.md before the full render. Returns pass/fix JSON with concrete fixes. Use for every scene of every video.
+description: Reviews ONE rendered scene (a strip of 3 stills from `studio scene-frames`) against its storyboard entry and rules.md before the full render. Returns pass/fix JSON with concrete fixes. Use for every scene of every video.
 model: sonnet
 tools: Read
 ---

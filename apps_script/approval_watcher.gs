@@ -306,22 +306,6 @@ function reoffer_(ss, cands, r, msg, sentAt, approver) {
   });
 }
 
-function imageLines_(qr) {
-  var imgs = qr.images || [];
-  if (!imgs.length) return [];
-  var out = ['', 'Images used:'];
-  imgs.forEach(function (i) {
-    out.push('- ' + i.file + ': ' + (i.description || '(no description)').slice(0, 300));
-    out.push('  Creator: ' + (i.creator || 'unknown') + ' | Licence: ' + i.license + ' | ' + (i.page_url || ''));
-  });
-  var restricted = imgs.filter(function (i) { return i.requires_permission === true || i.requires_permission === 'true'; });
-  if (restricted.length) {
-    out.push('Note: ' + restricted.length + ' image(s) are not openly licensed; their creators are credited in the ' +
-      'description. Your YES/NO for this video covers them (no separate image approval).');
-  }
-  return out;
-}
-
 /* ------------------------------------------------------------------ 2. replies */
 function newText_(body) {
   var lines = String(body).replace(/\r\n?/g, '\n').split('\n');

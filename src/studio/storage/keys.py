@@ -27,7 +27,6 @@ ALLOWED = {
     "MUSIC_ENABLED", "SFX_ENABLED", "OUTRO_ENABLED", "OUTRO_TEXT", "YOUTUBE_CATEGORY_ID",
     "PUBLISHER_URL", "ARCHIVE_FOLDER_ID",      # read by Apps Script; harmless for the pipeline
 }
-NEVER_FROM_DRIVE = {"UPLOAD_ENABLED", "PUBLICATION_ENABLED", "YTA_PUBLISHER_OAUTH", "WEBHOOK_SECRET"}
 
 TEMPLATE = {
     "_readme": "Private file. Do not share it. Fill the values you use; leave the rest empty. "

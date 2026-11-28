@@ -17,7 +17,7 @@ from pathlib import Path
 import numpy as np
 
 from studio.audio import cues as cuesmod
-from studio.audio.mix import SR, Library, read_audio, synth_sfx, music_track, write_wav
+from studio.audio.mix import SR, Library, read_audio, synth_sfx, music_track
 from studio.core import conf
 
 FALLBACK_SOUND = {"fail": "impact", "success": "chime", "footstep": "tick", "typing": "tick", "notify": "chime",

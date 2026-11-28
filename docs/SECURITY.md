@@ -3,7 +3,7 @@
 ## The approval boundary
 ```
 Claude daily task ──(no upload scope)──> Drive + Sheets: item in AWAITING_APPROVAL
-Apps Script (your Gmail) ──> approval email ──> your reply "YES VIDEO-…"
+Apps Script (your Gmail) ──> approval email ──> your reply "APPROVED VIDEO-…"
 Apps Script validates reply ──> ApprovalLog + APPROVED ──> HMAC-signed call
 Cloud Run publisher ──> re-validates everything ──> private upload + publishAt
 ```
@@ -36,7 +36,7 @@ Cloud Run publisher ──> re-validates everything ──> private upload + pub
 ## Ownership of transitions (avoids concurrent writers)
 | Transition | Owner |
 |---|---|
-| DISCOVERED … QUALITY_CHECK → AWAITING_APPROVAL | Claude daily task (`ytauto` CLI) |
+| DISCOVERED … QUALITY_CHECK → AWAITING_APPROVAL | Claude daily task (`studio` CLI) |
 | AWAITING_APPROVAL → APPROVED / REJECTED / EXPIRED | Apps Script (with LockService) |
 | APPROVED → UPLOADING → SCHEDULED / NEEDS_MANUAL_REVIEW | Publisher |
 | SCHEDULED → PUBLISHED | Claude daily task (`reconcile`) |
@@ -78,3 +78,13 @@ code), Sheets and read-only YouTube/Analytics scopes.
   security model does not rely on the code being secret.
 - Images that are not openly licensed (IMAGE_LICENSE_MODE=owner_approval) are credited, but a
   credit is not a licence: approving the video means you accept that copyright risk.
+
+## Claude Code guard hooks (`.claude/settings.json` → `scripts/hooks/run.py`, logic in `src/studio/hooks.py`)
+| Event | Behaviour |
+|---|---|
+| PreToolUse | **Denies** (fail closed): turning upload/publication/promotion flags on or dry-run off; forced pushes and history rewrites; writing env, OAuth, key or token files; editing `rules.md` unless `STUDIO_RULES_EDIT_AUTHORIZED=1` (owner authorisation). The match is deliberately strict, so a command that merely *mentions* those words is also refused: write such text with the Write tool instead. |
+| PreCompact | Re-saves the durable checkpoint; never blocks compaction. |
+| SessionStart | Restores `runtime/state/*` from the RunState tab and prints the next actions. |
+| PostToolUse / SubagentStop / Stop | Local JSON logs only (fail open). |
+
+Destructive commands also refuse to run while the local checkpoint is unverified (`CHECKPOINT_UNVERIFIED`).

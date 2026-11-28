@@ -13,10 +13,9 @@ It trusts nothing it is told. For each request it independently:
 """
 from __future__ import annotations
 
-import json
 import tempfile
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 
 from studio.youtube.approval.gate import ApprovalRejected, ReplyEvidence, validate_reply

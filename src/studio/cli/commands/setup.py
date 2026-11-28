@@ -6,7 +6,6 @@ from studio.orchestration.context import Ctx
 from studio.storage.store import log_error
 from zoneinfo import ZoneInfo
 import json
-import os
 import shutil
 
 from studio.cli.common import (ROOT_DIR, _today_local, out, repo_script_version)

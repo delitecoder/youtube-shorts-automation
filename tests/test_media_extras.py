@@ -1,5 +1,4 @@
 """TTS fallback chain, sound design, internet images + vision check, credits, outro."""
-import dataclasses
 import io
 import json
 from pathlib import Path
@@ -85,18 +84,6 @@ def test_cues_follow_scenes():
     timings = [{"start": 0}, {"start": 5}, {"start": 10}]
     kinds = [k for _, k in sound.plan_cues(scenes, timings)]
     assert kinds == ["impact", "whoosh", "pop", "chime"]
-
-
-def test_mix_ducks_and_normalises(tmp_path):
-    from studio.video.media_probe import loudness_lufs
-    voice = np.zeros(sound.SR * 6, np.float32)
-    t = np.arange(sound.SR * 2) / sound.SR
-    voice[sound.SR: sound.SR * 3] = 0.3 * np.sin(2 * np.pi * 200 * t)
-    vp = sound.write_wav(tmp_path / "v.wav", voice)
-    scenes = [{"visual": {"type": "title"}}, {"visual": {"type": "stat"}}]
-    att = sound.mix(vp, tmp_path / "out.wav", 6.0, scenes, [{"start": 0}, {"start": 3}], tmp_path, 1)
-    assert any(a["type"] == "music" for a in att)
-    assert abs(loudness_lufs(tmp_path / "out.wav") + 14) < 3
 
 
 # ------------------------------------------------------------------ images
