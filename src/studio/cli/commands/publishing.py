@@ -18,7 +18,7 @@ import re
 import subprocess
 import sys
 
-from studio.cli.common import (CHECKPOINT_SKIP, WORK, _archive, _chapters_for, _checkpoint_name, _credits_block, load_json, out)
+from studio.cli.common import (fit_json, CHECKPOINT_SKIP, WORK, _archive, _chapters_for, _checkpoint_name, _credits_block, load_json, out)
 
 
 def cmd_submit(ctx: Ctx, a) -> int:
@@ -43,6 +43,13 @@ def cmd_submit(ctx: Ctx, a) -> int:
     errs = sbmod.validate_metadata(meta, long=long_)
     if review.get("verdict") != "pass":
         errs.append("quality review verdict is not 'pass'")
+    sbp = WORK / rec.video_id / "storyboard.json"
+    sb = json.loads(sbp.read_text()) if sbp.exists() else {}
+    novelty = {"block": [], "review": []}
+    if rec.source_type == "GENERATED" and sb:
+        from studio.memory import content as memory
+        novelty = memory.check(ctx.store, sb, WORK / rec.video_id / "scenes", exclude_video=rec.video_id)
+        errs += [f"originality: {b}" for b in novelty["block"]]
     if errs:
         out({"ok": False, "errors": errs})
         return 2
@@ -65,7 +72,7 @@ def cmd_submit(ctx: Ctx, a) -> int:
         slot = rfc3339(free_slot(now, taken, ctx.s.publish_time, ctx.s.timezone, ctx.s.min_lead_minutes,
                                  weekday_slots=slots))
     qr = json.loads(rec.quality_report or "{}") | {"review": review}
-    qr["youtube"] = {"category_id": str(meta.get("category_id", "28")), "made_for_kids": False,
+    qr["youtube"] = {"category_id": str(meta.get("category_id", ctx.s.youtube_category_id)), "made_for_kids": False,
                      "synthetic": ctx.s.synthetic_media,
                      "language": lang, "embeddable": True, "public_stats": True}
     cp = WORK / rec.video_id / "image_credits.json"
@@ -75,7 +82,7 @@ def cmd_submit(ctx: Ctx, a) -> int:
                         for e in json.loads(cp.read_text())]
     fields = dict(title=meta["title"], description=meta["description"], tags=json.dumps(meta["tags"]),
                   pinned_comment=meta["pinned_comment"], hook=meta.get("hook", rec.hook),
-                  quality_report=json.dumps(qr)[:45000], proposed_publish_at=slot)
+                  quality_report=fit_json(qr), proposed_publish_at=slot)
     if rec.source_type == "GENERATED":
         path = Path(a.video or WORK / rec.video_id / f"{rec.video_id}.mp4")
         digest = sha256_file(path)
@@ -115,19 +122,51 @@ def cmd_submit(ctx: Ctx, a) -> int:
         if up_t:
             qr["thumbnail_file_id"] = up_t["id"]
             qr["poster_file_id"] = up_t["id"]
-            fields["quality_report"] = json.dumps(qr)[:45000]
+            fields["quality_report"] = fit_json(qr)
     if poster.exists() and not qr.get("poster_file_id"):
         up_p = ctx.external_write(f"upload poster for {rec.video_id}",
                                   lambda: ctx.drive.upload(poster, "awaiting_approval", "image/jpeg"))
         if up_p:
             qr["poster_file_id"] = up_p["id"]
-            fields["quality_report"] = json.dumps(qr)[:45000]
+            fields["quality_report"] = fit_json(qr)
     fields["preview_url"] = f"https://drive.google.com/file/d/{file_id}/view"  # private: owner only
     rec = ctx.store.transition(rec.video_id, State.QUALITY_CHECK, State.AWAITING_APPROVAL, rec.version, **fields)
+    memo = _remember(ctx, rec, sb, meta, qr)
     out({"ok": True, "video_id": rec.video_id, "state": rec.state.value, "proposed_publish_at": slot,
          "note": "Apps Script sends the approval email within ~5 minutes" if not ctx.s.dry_run
-         else "DRY_RUN: no email will be sent"})
+         else "DRY_RUN: no email will be sent", "originality_review": novelty["review"], "memory": memo})
     return 0
+
+
+def _remember(ctx: Ctx, rec, sb: dict, meta: dict, qr: dict) -> dict:
+    """ProductionManifest + ContentMemory rows (the learning loop's record of every creative choice).
+    Never blocks a submit that already succeeded; failures are reported in the output."""
+    try:
+        from studio.memory import content as memory
+        policy = {}
+        for a in ctx.store.rows("Assignments"):
+            if a.get("video_id") == rec.video_id:
+                policy = json.loads(a.get("policy") or "{}") | {"exp_id": a.get("exp_id"), "arm": a.get("arm")}
+        ch = policy.get("choices", {})
+        tj = WORK / rec.video_id / "timings.json"
+        rq = json.loads(tj.read_text()).get("qc", {}) if tj.exists() else {}
+        music = next((x.get("file", "") for x in rq.get("attributions", []) if x.get("type") == "music"), "")
+        ctx.store.append("ProductionManifest", {
+            "recorded_at": utcnow().isoformat(), "video_id": rec.video_id,
+            "format": "long" if is_long(rec.video_id) else "short", "lang": language_of(rec.video_id),
+            "topic_category": sb.get("category", ""),
+            "story_structure": sb.get("story_structure", ch.get("story_structure", "")),
+            "hook_type": sb.get("hook_type", ch.get("hook_type", "")), "style_id": sb.get("style_id", ""),
+            "visual_approaches": json.dumps(sorted({s.get("visual", {}).get("type", "") for s in sb.get("scenes", [])})),
+            "pacing": ch.get("pacing", ""), "length_s": str(rec.duration_s or rq.get("duration", "")),
+            "voice": rq.get("voice", ""), "audio_profile": ch.get("music_profile", ""), "music": music,
+            "sfx_density": ch.get("sfx_density", ""), "thumbnail_style": sb.get("thumbnail_style", ""),
+            "experiment_id": policy.get("exp_id", ""), "arm": policy.get("arm", ""), "render_s": "",
+            "qc_score": "pass" if rq.get("ok") else "", "manifest_ref": f"work/{rec.video_id}/render_manifest.json"})
+        n = memory.record(ctx.store, rec.video_id, sb, WORK / rec.video_id / "scenes", music, sb.get("thumbnail_style", ""))
+        return {"ok": True, "memory_rows": n}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"{type(e).__name__}: {str(e)[:160]}"}
 
 
 def cmd_checkpoint(ctx: Ctx, a) -> int:

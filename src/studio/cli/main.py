@@ -4,12 +4,12 @@ from __future__ import annotations
 import argparse
 import sys
 
-from studio.cli.commands import analytics, assets, planning, production, publishing, setup, state
+from studio.cli.commands import analytics, assets, intelligence, planning, production, publishing, setup, state
 from studio.cli.common import out
 from studio.core.google_auth import MissingCredentials
 from studio.orchestration.context import Ctx
 
-GROUPS = (setup, planning, production, assets, publishing, analytics, state)
+GROUPS = (setup, planning, production, assets, publishing, analytics, state, intelligence)
 
 
 def build_parser() -> argparse.ArgumentParser:

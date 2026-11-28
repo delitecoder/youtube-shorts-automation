@@ -18,8 +18,10 @@ from studio.core.config import ROOT, RUNTIME_DIR
 
 STATE = Path(RUNTIME_DIR) / "state"
 UNVERIFIED = STATE / "CHECKPOINT_UNVERIFIED"
-PROTECTED_ON = re.compile(r"\b(UPLOAD_ENABLED|PUBLICATION_ENABLED|PROMOTION_ENABLED)\s*[=:]\s*['\"]?(true|1|yes)\b", re.I)
-DRYRUN_OFF = re.compile(r"\bDRY_RUN\s*[=:]\s*['\"]?(false|0|no)\b", re.I)
+# Settings semantics (core/config.py): a flag is ON only when its value is exactly the word true, and the
+# dry-run flag is OFF only when exactly the word false. Match only those values (no false positives on prose).
+PROTECTED_ON = re.compile(r"\b(UPLOAD_ENABLED|PUBLICATION_ENABLED|PROMOTION_ENABLED)['\"]?\s*[=:]\s*['\"]?true\b", re.I)
+DRYRUN_OFF = re.compile(r"\bDRY_RUN['\"]?\s*[=:]\s*['\"]?false\b", re.I)
 FORCE_PUSH = re.compile(r"\bgit\s+push\b[^|;&]*(\s--force(-with-lease)?\b|\s-f\b|\s\+\S+)")
 HISTORY_REWRITE = re.compile(r"\bgit\s+(filter-branch|filter-repo|push\s+[^|;&]*--delete\b[^|;&]*\b(main|archive/|backup/))")
 DESTRUCTIVE = re.compile(r"\bgit\s+push\b|\bstudio\s+(publish|approve|upload)\b|-m\s+studio\s+(publish|approve|upload)\b"

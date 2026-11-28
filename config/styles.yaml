@@ -1,0 +1,77 @@
+# Style registry (studio.animation.styles). A style is a coherent visual identity for ONE video.
+# Selection: suitable for the topic category, not used in the recent window (novelty), experiment arm wins.
+# Styles evolve: bump `version` and keep the id; performance and cost come from ProductionManifest/Experiments.
+recent_window: 4          # a style is not reused within this many previous videos of the same format
+styles:
+  - id: blueprint-architect
+    version: 1
+    palette: blueprint
+    transitions: [iris, blur, whip, cut]
+    title: line_blur
+    captions: underline
+    typography: technical sans, thin rules, labelled callouts
+    camera_language: slow push-ins on components, wide establishing diagram
+    techniques: [animated_architecture, motion_graphics_2d, data_viz]
+    motion_principles: draw-on lines, components snap into a grid, data packets travel along edges
+    categories: [system design, software engineering, cloud, databases, data engineering]
+    audio_traits: {music_profile: minimal_electronic, sfx_density: moderate}
+  - id: neon-lab
+    version: 1
+    palette: neon
+    transitions: [blur, whip, iris, cut]
+    title: blur_words
+    captions: highlight
+    typography: bold display, high-contrast keywords
+    camera_language: energetic whip moves, close-ups on numbers
+    techniques: [kinetic_typography, three_d, data_viz]
+    motion_principles: fast arrivals on long ease-out tails, titles land and stay still
+    categories: [artificial intelligence, emerging technology, technology news, hardware]
+    audio_traits: {music_profile: tech_ambient, sfx_density: moderate}
+  - id: ember-investigation
+    version: 1
+    palette: ember
+    transitions: [flood, blur, cut, whip]
+    title: grey_to_ink
+    captions: pill
+    typography: editorial serif headlines, mono evidence cards
+    camera_language: documentary slow pans across evidence, hold on the reveal
+    techniques: [mixed, licensed_imagery, timeline]
+    motion_principles: evidence cards stack, timeline scrubs, a single accent colour marks the culprit
+    categories: [cybersecurity, tech stories, technology news]
+    audio_traits: {music_profile: investigation, sfx_density: minimal}
+  - id: mint-classroom
+    version: 1
+    palette: mint
+    transitions: [whip, flood, blur, cut]
+    title: blur_words
+    captions: pill
+    typography: friendly rounded sans, step numbers
+    camera_language: steady medium shots, step-by-step progression left to right
+    techniques: [motion_graphics_2d, step_by_step, code]
+    motion_principles: one idea per beat, progressive disclosure, nothing moves without a reason
+    categories: [programming, general education, educational technology]
+    audio_traits: {music_profile: calm_edu, sfx_density: minimal}
+  - id: violet-simulation
+    version: 1
+    palette: violet
+    transitions: [iris, flood, blur, cut]
+    title: line_blur
+    captions: highlight
+    typography: geometric sans, live counters
+    camera_language: orbiting 3D views, cut to the measured result
+    techniques: [simulation, three_d, data_viz]
+    motion_principles: show the system running, then pause to annotate what just happened
+    categories: [scientific computing, machine learning, artificial intelligence, hardware]
+    audio_traits: {music_profile: documentary, sfx_density: moderate}
+  - id: paper-story
+    version: 1
+    palette: paper
+    transitions: [whip, iris, cut, blur]
+    title: grey_to_ink
+    captions: underline
+    typography: hand-drawn ink, speech bubbles
+    camera_language: story-world camera (wide, push, close) following the characters
+    techniques: [story_world]
+    motion_principles: characters act the narration; every action has a sound
+    categories: [tech stories, system design, programming, general education, motivation]
+    audio_traits: {music_profile: inspirational, sfx_density: moderate}

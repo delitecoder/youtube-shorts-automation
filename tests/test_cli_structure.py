@@ -77,3 +77,18 @@ def test_legacy_ytauto_entry_point_still_works(tmp_path):
     p = subprocess.run([sys.executable, "-m", "ytauto", "route", "--task", "research"], capture_output=True, text=True,
                        env=env, timeout=120)
     assert json.loads(p.stdout)["model"] == "haiku" and "deprecated" in p.stderr
+
+
+def test_plan_writes_style_and_experiment_into_storyboard(tmp_path):
+    sb = tmp_path / "sb.json"
+    sb.write_text(json.dumps({"video_id": "VIDEO-20261128-001", "scenes": [{"narration": "x", "visual": {"type": "title"}}],
+                              "hooks": ["Why?"], "chosen_hook": 0}))
+    code, r = _run(tmp_path, "plan", "--video-id", "VIDEO-20261128-001", "--category", "system design",
+                   "--storyboard", str(sb))
+    data = json.loads(sb.read_text())
+    assert code == 0 and r["style"] and data["style_id"].startswith(r["style"]) and data["palette"]
+    assert data["experiment"]["mode"] in ("proven", "variation", "exploration")
+    code, r2 = _run(tmp_path, "plan", "--video-id", "VIDEO-20261128-001")
+    assert r2["policy"]["reused"] is True                      # idempotent per video
+    code, r3 = _run(tmp_path, "experiment", "list")
+    assert r3["ok"]

@@ -36,6 +36,29 @@ def out(obj) -> None:
     print(json.dumps(obj, ensure_ascii=False, default=str))
 
 
+def fit_json(obj, limit: int = 45000) -> str:
+    """JSON that fits a Sheets cell WITHOUT slicing (slicing produced invalid JSON that readers silently
+    dropped). Largest lists are halved / largest values removed, and `_trimmed` records what was cut."""
+    s = json.dumps(obj, ensure_ascii=False, default=str)
+    if len(s) <= limit:
+        return s
+    data = json.loads(s) if isinstance(obj, (dict, list)) else {"value": str(obj)}
+    if not isinstance(data, dict):
+        data = {"items": data}
+    trimmed = []
+    while len(json.dumps(data, ensure_ascii=False)) > limit:
+        key = max((k for k in data if k != "_trimmed"), key=lambda k: len(json.dumps(data[k], ensure_ascii=False)))
+        v = data[key]
+        if isinstance(v, list) and len(v) > 1:
+            data[key] = v[: len(v) // 2]
+            trimmed.append(f"{key}[:{len(v) // 2}]")
+        else:
+            data.pop(key)
+            trimmed.append(key)
+        data["_trimmed"] = trimmed
+    return json.dumps(data, ensure_ascii=False)
+
+
 def load_json(path: str) -> dict:
     return json.loads(Path(path).read_text())
 
@@ -269,7 +292,7 @@ def _run_audit(ctx: Ctx) -> dict:
     ours = {r.youtube_video_id for r in ctx.store.all() if r.youtube_video_id}
     rep = au.collect(ctx.yt_analytics, ctx.youtube, _today_local(ctx), ours)
     res = au.analyse(rep)
-    ctx.store.set_config("last_audit", json.dumps(res)[:45000])
+    ctx.store.set_config("last_audit", fit_json(res))
     try:                                   # tags/hashtags that brought views on the owner's videos
         reach = au.channel_reach(ctx.youtube)
         if reach:

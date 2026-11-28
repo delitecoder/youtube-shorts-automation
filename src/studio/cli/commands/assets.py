@@ -7,7 +7,7 @@ from studio.orchestration.context import Ctx
 import json
 import sys
 
-from studio.cli.common import (LIBRARY, _style_folder, _style_notes, _sync_brand, out)
+from studio.cli.common import (fit_json, LIBRARY, _style_folder, _style_notes, _sync_brand, out)
 
 
 def cmd_import_audio(ctx: Ctx, a) -> int:
@@ -89,7 +89,7 @@ def cmd_analyze_reference(ctx: Ctx, a) -> int:
             known[fid] = {x: r.get(x) for x in ("file", "duration", "size", "cuts_per_min", "avg_shot_s",
                                                "first_cut_s", "wpm", "hook_first_3s", "lufs")}
     if not a.dir:
-        ctx.store.set_config("reference_analysis", json.dumps(known)[:45000])
+        ctx.store.set_config("reference_analysis", fit_json(known))
     out({"ok": True, "new": len(results), "videos": results, "style_notes": _style_notes(ctx),
          "next": "director: look at each contact_sheet, then add 1–3 concrete notes with "
                  "`python -m studio style-note --add \"…\"` (shot length, text style, transitions, hook)"})

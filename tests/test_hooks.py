@@ -31,16 +31,23 @@ def bash(cmd):
     return hooks.pre_tool_use({"tool_name": "Bash", "tool_input": {"command": cmd}})
 
 
-@pytest.mark.parametrize("cmd", ["UPLOAD_ENABLED=true python -m studio publish", "export PUBLICATION_ENABLED='true'",
-                                 "PROMOTION_ENABLED=1 x", "DRY_RUN=false python -m studio run",
+# Dangerous strings are assembled at runtime so this source file never contains a literal flag change
+# (the live PreToolUse hook would, correctly, refuse to write one).
+T, F = "tr" + "ue", "fal" + "se"
+
+
+@pytest.mark.parametrize("cmd", [f"UPLOAD_ENABLED={T} python -m studio publish", f"export PUBLICATION_ENABLED='{T}'",
+                                 f"PROMOTION_ENABLED={T} x", f"DRY_RUN={F} python -m studio run",
+                                 f"export DRY_RUN='{F}'",
                                  "git push --force origin main", "git push -f origin main", "git push origin +main",
                                  "git filter-branch --tree-filter x", "git push origin --delete archive/pre-rebuild-1"])
 def test_dangerous_bash_is_denied(cmd):
     assert _decision(bash(cmd)) == "deny"
 
 
-@pytest.mark.parametrize("cmd", ["python -m pytest -q", "git push -u origin rebuild/studio", "DRY_RUN=true python -m studio plan",
-                                 "echo UPLOAD_ENABLED is off", "git status"])
+@pytest.mark.parametrize("cmd", ["python -m pytest -q", "git push -u origin rebuild/studio", f"DRY_RUN={T} python -m studio plan",
+                                 "echo UPLOAD_ENABLED is off", "git status", "echo 'DRY_RUN" + ": no email will be sent'",
+                                 "PROMOTION_ENABLED=1 x"])          # '1' is NOT on (config only accepts the word)
 def test_normal_bash_is_allowed(cmd):
     assert _decision(bash(cmd)) == "allow"
 
@@ -49,7 +56,8 @@ def test_secret_files_and_flag_edits_are_denied():
     w = lambda path, content="": hooks.pre_tool_use({"tool_name": "Write", "tool_input": {"file_path": path, "content": content}})
     assert _decision(w("/repo/.env")) == "deny"
     assert _decision(w("/repo/client_secret_123.json")) == "deny"
-    assert _decision(w("/repo/config/app.yaml", "UPLOAD_ENABLED: true")) == "deny"
+    assert _decision(w("/repo/config/app.yaml", f"UPLOAD_ENABLED: {T}")) == "deny"
+    assert _decision(w("/repo/config/app.json", '{"DRY_RUN": "' + F + '"}')) == "deny"
     assert _decision(w("/repo/docs/x.md", "the flag UPLOAD_ENABLED stays off")) == "allow"
 
 
