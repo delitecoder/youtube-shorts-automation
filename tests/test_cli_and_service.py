@@ -13,7 +13,7 @@ FIX = ROOT / "tests" / "fixtures"
 
 
 def run(rt, *args, check=True):
-    env = {**os.environ, "YTA_RUNTIME_DIR": str(rt), "DRY_RUN": "true", "TTS_PROVIDER": "tone",
+    env = {**os.environ, "YTA_RUNTIME_DIR": str(rt), "DRY_RUN": "true", "TTS_PROVIDER": "tone", "STUDIO_ASR": "0",
            "PYTHONPATH": str(ROOT / "src")}
     for k in ("YTA_PIPELINE_OAUTH", "SPREADSHEET_ID", "UPLOAD_ENABLED"):
         env.pop(k, None)

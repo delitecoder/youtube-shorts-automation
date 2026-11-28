@@ -304,7 +304,7 @@ def render(storyboard: dict, scene_audio: list[Path], workdir: Path, out_mp4: Pa
                              music=music, sfx=sfx, sfx_dir=sfx_dir, music_dir=music_dir,
                              theme=storyboard.get("theme"), mood=storyboard.get("music"))
     (workdir / "attributions.json").write_text(json.dumps(attributions, indent=1))
-    caps = captions.build(scenes, timings)
+    caps, speech_meta = _captions(storyboard, scenes, timings, workdir)
     (workdir / "captions.srt").write_text(captions.to_srt(caps))
     duration = timings[-1]["end"]
     n_frames = int(math.ceil(duration * FPS))
@@ -318,7 +318,7 @@ def render(storyboard: dict, scene_audio: list[Path], workdir: Path, out_mp4: Pa
             report = qc(out_mp4, timings, long_=long_)
             report |= {"attributions": attributions, "engine": "hyperframes"}
             if report["ok"]:
-                report = full_qc(report, out_mp4, workdir, norm_wav, long_)
+                report = full_qc(report, out_mp4, workdir, norm_wav, long_, speech_meta, caps)
                 (workdir / "timings.json").write_text(json.dumps({"timings": timings, "qc": report}, indent=1))
                 return report
             fallback_reason = f"hyperframes QC failed: {report['checks']}"
@@ -393,19 +393,49 @@ def render(storyboard: dict, scene_audio: list[Path], workdir: Path, out_mp4: Pa
     report["engine"] = "pillow"
     if fallback_reason:
         report["fallback_reason"] = fallback_reason
-    report = full_qc(report, out_mp4, workdir, norm_wav, False)
+    report = full_qc(report, out_mp4, workdir, norm_wav, False, speech_meta, caps)
     (workdir / "timings.json").write_text(json.dumps({"timings": timings, "qc": report}, indent=1))
     return report
 
 
-def full_qc(report: dict, out_mp4: Path, workdir: Path, norm_wav: Path, long_: bool) -> dict:
+def _captions(storyboard: dict, scenes: list[dict], timings: list[dict], workdir: Path) -> tuple[list[dict], dict]:
+    """Captions timed from the actual speech (faster-whisper on the dialogue stem) when available; otherwise
+    the estimate, labelled as such. Also measures word error vs the spoken script (pronunciation check)."""
+    from studio.audio import pronunciation, speech
+    lang = storyboard.get("language", "en")
+    meta = {"timing": "estimated", "asr": "unavailable" if not speech.available(lang) else "pending", "wer": None}
+    if meta["asr"] == "pending":
+        try:
+            words = speech.transcribe(workdir / "stems" / "dialogue.wav", lang)
+            caps, st = captions.build_aligned(scenes, timings, words)
+            table, acr = pronunciation.load(None, lang)
+            spoken = " ".join(pronunciation.apply(s.get("narration", ""), table, acr) for s in scenes)
+            meta = {"timing": "aligned", "asr": "ok", "wer": round(speech.wer(spoken, " ".join(w[0] for w in words)), 3),
+                    **st}
+            (workdir / "asr_words.json").write_text(json.dumps(words))
+            (workdir / "captions_meta.json").write_text(json.dumps(meta, indent=1))
+            return caps, meta
+        except Exception as e:  # noqa: BLE001 - fall back to the labelled estimate, never silently claim alignment
+            meta = {"timing": "estimated", "asr": f"failed: {type(e).__name__}", "wer": None}
+    (workdir / "captions_meta.json").write_text(json.dumps(meta, indent=1))
+    return captions.build(scenes, timings), meta
+
+
+def full_qc(report: dict, out_mp4: Path, workdir: Path, norm_wav: Path, long_: bool,
+            speech_meta: dict | None = None, caps: list[dict] | None = None) -> dict:
     """Add objective video QC (decode/black/frozen/sync) and audio QC (loudness, peak, clipping, stems,
     speech-over-music) to the render report; any critical finding makes report['ok'] False (blocks submit)."""
     from studio.audio import qc as aqc
     from studio.video import qc as vqc
     v = vqc.check(out_mp4, long_=long_)
+    sm = speech_meta or {}
     a = aqc.check(norm_wav, workdir / "stems" if (workdir / "stems").exists() else None,
-                  video_duration=v["measured"].get("duration_s"))
+                  video_duration=v["measured"].get("duration_s"), wer=sm.get("wer"))
+    cap_problems = captions.check(caps or [])
+    a["measured"]["captions"] = {**sm, "problems": cap_problems}
+    if cap_problems:
+        a["critical"].append(f"caption timing problems: {cap_problems[:3]}")
+        a["pass"] = False
     report["video_qc"], report["audio_qc"] = v, a
     report["ok"] = bool(report["ok"] and v["pass"] and a["pass"])
     (workdir / "qc_report.json").write_text(json.dumps({"render": report.get("checks"), "video": v, "audio": a},
